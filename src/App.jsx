@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import KawaiiCreature from './components/KawaiiCreature';
 import { BackgroundDoodles, SpeechBubble, TypewriterText, StatsCell } from './components/BarComponents';
 import ChatPanel from './components/ChatPanel';
@@ -27,11 +27,25 @@ const DEFAULT_CONFIG = {
   trafficMultiplier: 1,
 };
 
+function useViewportHeight() {
+  const [h, setH] = useState(window.innerHeight);
+  useEffect(() => {
+    const onResize = () => setH(window.innerHeight);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return h;
+}
+
+const BAR_MODE_THRESHOLD = 250;
+
 export default function App() {
   const [config, setConfigState] = useState(loadConfig);
   const [chatOpen, setChatOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [spike, setSpike] = useState(0);
+  const spike = 0;
+  const vpHeight = useViewportHeight();
+  const barMode = vpHeight < BAR_MODE_THRESHOLD;
 
   const setConfig = (next) => {
     setConfigState(next);
@@ -82,13 +96,15 @@ export default function App() {
 
       {/* Top bar with stats */}
       <div style={{
-        height: 108, minHeight: 108, width: '100%',
-        display: 'grid', gridTemplateColumns: '130px 1fr auto',
-        alignItems: 'center', padding: '0 22px 0 18px', gap: 26,
+        height: barMode ? '100%' : 108,
+        minHeight: barMode ? 0 : 108,
+        width: '100%',
+        display: 'grid', gridTemplateColumns: barMode ? 'auto 1fr auto' : '130px 1fr auto',
+        alignItems: 'center', padding: '0 22px 0 18px', gap: barMode ? 16 : 26,
         position: 'relative', zIndex: 2,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 130, height: '100%' }}>
-          <KawaiiCreature mood={mood} size={104} shape={config.faceShape} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barMode ? 'auto' : 130, height: '100%' }}>
+          <KawaiiCreature mood={mood} size={barMode ? Math.min(vpHeight - 16, 80) : 104} shape={config.faceShape} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', height: '100%', minWidth: 0 }}>
           <SpeechBubble palette={palette}>
@@ -98,8 +114,7 @@ export default function App() {
         <StatsCell data={data} palette={palette} mood={mood} />
       </div>
 
-      {/* Main content area — fullscreen analytics dashboard */}
-      <div style={{
+      {!barMode && <div style={{
         flex: 1, display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: 16, padding: '16px 22px', overflowY: 'auto',
@@ -184,10 +199,9 @@ export default function App() {
             }}>clear memory</button>
           </DashCard>
         )}
-      </div>
+      </div>}
 
-      {/* Bottom controls */}
-      <div style={{
+      {!barMode && <div style={{
         position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)',
         display: 'flex', gap: 8, zIndex: 999,
       }}>
@@ -197,13 +211,10 @@ export default function App() {
         <PillButton palette={palette} onClick={() => setSettingsOpen(o => !o)} active={settingsOpen}>
           ✿ settings
         </PillButton>
-        <PillButton palette={palette} onClick={() => setSpike(80 + Math.random() * 40)}>
-          ✦ inject spike
-        </PillButton>
-      </div>
+      </div>}
 
-      <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} />
-      {settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} />}
+      {!barMode && <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} />}
+      {!barMode && settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

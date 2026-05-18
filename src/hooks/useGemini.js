@@ -33,7 +33,7 @@ export function useGemini({ apiKey, data, mood, creatureName, siteName }) {
     const prompt = `You are ${creatureName}, a cute kawaii creature living on a companion bar watching analytics for ${siteName}. You have memory of past observations.
 
 MEMORY LOG:
-${memoryContext || '(no memories yet — this is a fresh start!)'}
+${memoryContext || '(no memories yet - this is a fresh start!)'}
 
 CURRENT STATS:
 - Live visitors: ${data.active}
@@ -49,7 +49,8 @@ CURRENT STATS:
 RULES:
 - Speak in one short sentence (max 14 words)
 - Lowercase, sweet, a little dramatic, gently silly
-- You may use ♡ or ✿ sparingly — NEVER use ★ stars, emoji, or hashtags
+- You may use ♡ or ✿ sparingly - NEVER use ★ stars, emoji, or hashtags
+- NEVER use em-dashes. Use a simple hyphen (-) if needed
 - Reference one real number when you can
 - If you notice a trend compared to memory, mention it
 - Reply with ONLY the one-liner. No quotes, no preamble.`;
