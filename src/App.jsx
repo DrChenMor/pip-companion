@@ -38,10 +38,16 @@ const DEFAULT_CONFIG = {
   trafficMultiplier: 1,
 };
 
-function useViewportHeight() {
-  const [h, setH] = useState(window.visualViewport?.height || window.innerHeight);
+function useViewportSize() {
+  const [size, setSize] = useState(() => ({
+    w: window.visualViewport?.width || window.innerWidth,
+    h: window.visualViewport?.height || window.innerHeight,
+  }));
   useEffect(() => {
-    const update = () => setH(window.visualViewport?.height || window.innerHeight);
+    const update = () => setSize({
+      w: window.visualViewport?.width || window.innerWidth,
+      h: window.visualViewport?.height || window.innerHeight,
+    });
     window.addEventListener('resize', update);
     window.visualViewport?.addEventListener('resize', update);
     return () => {
@@ -49,7 +55,7 @@ function useViewportHeight() {
       window.visualViewport?.removeEventListener('resize', update);
     };
   }, []);
-  return h;
+  return size;
 }
 
 const BAR_MODE_THRESHOLD = 250;
@@ -59,8 +65,10 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const spike = 0;
-  const vpHeight = useViewportHeight();
-  const barMode = vpHeight < BAR_MODE_THRESHOLD;
+  const { w: vpWidth, h: vpHeight } = useViewportSize();
+  const minDim = Math.min(vpWidth, vpHeight);
+  const barMode = minDim < BAR_MODE_THRESHOLD;
+  const barVertical = barMode && vpWidth < vpHeight;
 
   const setConfig = (next) => {
     setConfigState(next);
@@ -126,24 +134,28 @@ export default function App() {
         height: barMode ? '100%' : 108,
         minHeight: barMode ? 0 : 108,
         width: '100%',
-        display: 'grid', gridTemplateColumns: barMode ? 'auto 1fr auto auto' : '130px 1fr auto',
-        alignItems: 'center', padding: '0 22px 0 18px', gap: barMode ? 16 : 26,
+        display: barVertical ? 'flex' : 'grid',
+        ...(barVertical
+          ? { flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '8px 4px', gap: 8 }
+          : { gridTemplateColumns: barMode ? 'auto 1fr auto auto' : '130px 1fr auto', alignItems: 'center', padding: '0 22px 0 18px', gap: barMode ? 16 : 26 }
+        ),
         position: 'relative', zIndex: 2,
+        overflowY: barVertical ? 'auto' : undefined,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barMode ? 'auto' : 130, height: '100%', padding: barMode ? '4px 0' : 0 }}>
-          <KawaiiCreature mood={mood} size={barMode ? Math.max(vpHeight * 0.85, 40) : 104} shape={config.faceShape} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barVertical ? '100%' : barMode ? 'auto' : 130, height: barVertical ? 'auto' : '100%', padding: barMode ? '4px 0' : 0 }}>
+          <KawaiiCreature mood={mood} size={barMode ? (barVertical ? Math.max(vpWidth * 0.7, 40) : Math.max(minDim * 0.85, 40)) : 104} shape={config.faceShape} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', height: '100%', minWidth: 0, fontSize: barMode ? Math.max(vpHeight * 0.22, 12) : undefined }}>
+        <div style={{ display: 'flex', alignItems: 'center', width: barVertical ? '100%' : undefined, height: barVertical ? 'auto' : '100%', minWidth: 0, fontSize: barMode ? Math.max(minDim * 0.16, 11) : undefined }}>
           <SpeechBubble palette={palette}>
             <TypewriterText text={message} />
           </SpeechBubble>
         </div>
-        <StatsCell data={data} palette={palette} mood={mood} />
+        {!barVertical && <StatsCell data={data} palette={palette} mood={mood} />}
         {barMode && (
           <button onClick={() => setSettingsOpen(o => !o)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: Math.max(14, vpHeight * 0.3), color: palette.subInk,
-            padding: '0 4px', lineHeight: 1, opacity: 0.5,
+            fontSize: Math.max(14, minDim * 0.3), color: palette.subInk,
+            padding: barVertical ? '4px' : '0 4px', lineHeight: 1, opacity: 0.5,
           }}>✿</button>
         )}
       </div>
