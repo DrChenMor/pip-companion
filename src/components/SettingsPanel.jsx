@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function SettingsPanel({ config, setConfig, palette, onClose, gaError, gaConnected }) {
+export default function SettingsPanel({ config, setConfig, palette, onClose, gaError, gaConnected, googleAuth }) {
   const [showApiKey, setShowApiKey] = useState(false);
 
   return (
@@ -35,15 +35,36 @@ export default function SettingsPanel({ config, setConfig, palette, onClose, gaE
         </Section>
 
         <Section label="google analytics">
-          <Field label="GA4 Property ID" value={config.gaPropertyId} onChange={v => setConfig({ ...config, gaPropertyId: v })} placeholder="e.g. 123456789" />
-          <Field label="GA API Key" value={config.gaApiKey} onChange={v => setConfig({ ...config, gaApiKey: v })} type="password" />
-          {config.gaPropertyId && config.gaApiKey && (
-            <div style={{
-              fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 8,
-              background: gaError ? '#FFE0E0' : gaConnected ? '#D4EDDA' : '#FFF3CD',
-              color: gaError ? '#9B1C1C' : gaConnected ? '#155724' : '#856404',
-            }}>
-              {gaError ? `error: ${gaError}` : gaConnected ? 'connected to GA4 ♡' : 'connecting...'}
+          <Field label="OAuth Client ID" value={config.gaClientId} onChange={v => setConfig({ ...config, gaClientId: v })} placeholder="xxxxx.apps.googleusercontent.com" />
+          <Field label="GA4 Property ID" value={config.gaPropertyId} onChange={v => setConfig({ ...config, gaPropertyId: v })} placeholder="e.g. 505919713" />
+          {config.gaClientId && config.gaPropertyId && (
+            googleAuth.isSignedIn ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{
+                  flex: 1, fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 8,
+                  background: gaError ? '#FFE0E0' : gaConnected ? '#D4EDDA' : '#FFF3CD',
+                  color: gaError ? '#9B1C1C' : gaConnected ? '#155724' : '#856404',
+                }}>
+                  {gaError ? `error: ${gaError}` : gaConnected ? 'connected to GA4 ♡' : 'fetching data...'}
+                </div>
+                <button onClick={googleAuth.signOut} style={{
+                  fontSize: 10, background: 'none', border: '1.5px solid #ccc',
+                  borderRadius: 8, padding: '3px 8px', cursor: 'pointer',
+                  fontFamily: 'inherit', fontWeight: 700, color: '#999',
+                }}>disconnect</button>
+              </div>
+            ) : (
+              <button onClick={googleAuth.signIn} style={{
+                padding: '8px 14px', borderRadius: 10,
+                border: '2px solid ' + palette.ink, cursor: 'pointer',
+                background: palette.stickers[1], fontWeight: 800, fontSize: 12,
+                color: palette.ink, fontFamily: 'inherit', width: '100%',
+              }}>connect to google analytics ♡</button>
+            )
+          )}
+          {googleAuth.error && (
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#9B1C1C' }}>
+              {googleAuth.error}
             </div>
           )}
           <div style={{ fontSize: 10, color: palette.subInk, fontWeight: 600, lineHeight: 1.4 }}>

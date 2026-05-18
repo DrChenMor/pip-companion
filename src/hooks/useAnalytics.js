@@ -82,25 +82,31 @@ export function useMockAnalytics({ multiplier = 1, spike = 0 } = {}) {
   return data;
 }
 
-export function useGoogleAnalytics({ propertyId, apiKey, refreshInterval = 30000 }) {
+export function useGoogleAnalytics({ propertyId, accessToken, refreshInterval = 30000 }) {
   const [gaData, setGaData] = useState(null);
   const [error, setError] = useState(null);
 
   const fetchGA = useCallback(async () => {
-    if (!propertyId) return;
+    if (!propertyId || !accessToken) return;
     try {
       const realtimeRes = await fetch(
-        `https://content-analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runRealtimeReport?key=${apiKey}`,
+        `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runRealtimeReport`,
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
           body: JSON.stringify({
             dimensions: [{ name: 'country' }, { name: 'unifiedScreenName' }],
             metrics: [{ name: 'activeUsers' }],
           }),
         }
       );
-      if (!realtimeRes.ok) throw new Error(`GA API: ${realtimeRes.status}`);
+      if (!realtimeRes.ok) {
+        const body = await realtimeRes.json().catch(() => ({}));
+        throw new Error(body.error?.message || `GA API: ${realtimeRes.status}`);
+      }
       const realtime = await realtimeRes.json();
 
       let totalActive = 0;
@@ -144,7 +150,7 @@ export function useGoogleAnalytics({ propertyId, apiKey, refreshInterval = 30000
       console.warn('GA4 error:', err.message);
       setError(err.message);
     }
-  }, [propertyId, apiKey]);
+  }, [propertyId, accessToken]);
 
   useEffect(() => {
     fetchGA();

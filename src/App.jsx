@@ -5,6 +5,7 @@ import ChatPanel from './components/ChatPanel';
 import SettingsPanel from './components/SettingsPanel';
 import { useMockAnalytics, useGoogleAnalytics, moodFromAnalytics } from './hooks/useAnalytics';
 import { useGemini } from './hooks/useGemini';
+import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { useInsightMessage } from './hooks/useInsightMessage';
 import { PALETTES } from './utils/constants';
 
@@ -23,7 +24,7 @@ const DEFAULT_CONFIG = {
   palette: 'peach',
   geminiApiKey: '',
   gaPropertyId: '',
-  gaApiKey: '',
+  gaClientId: '',
   trafficMultiplier: 1,
 };
 
@@ -52,13 +53,14 @@ export default function App() {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(next));
   };
 
+  const googleAuth = useGoogleAuth(config.gaClientId);
   const mockData = useMockAnalytics({ multiplier: config.trafficMultiplier, spike });
   const { gaData, error: gaError } = useGoogleAnalytics({
     propertyId: config.gaPropertyId,
-    apiKey: config.gaApiKey,
+    accessToken: googleAuth.accessToken,
   });
 
-  const data = (config.gaPropertyId && config.gaApiKey && gaData) ? gaData : mockData;
+  const data = (config.gaPropertyId && googleAuth.isSignedIn && gaData) ? gaData : mockData;
   const mood = moodFromAnalytics(data);
   const palette = PALETTES[config.palette] || PALETTES.peach;
 
@@ -214,7 +216,7 @@ export default function App() {
       </div>}
 
       {!barMode && <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} />}
-      {!barMode && settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} gaError={gaError} gaConnected={!!gaData} />}
+      {!barMode && settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} gaError={gaError} gaConnected={!!gaData} googleAuth={googleAuth} />}
     </div>
   );
 }
