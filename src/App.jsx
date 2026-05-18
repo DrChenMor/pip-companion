@@ -28,13 +28,13 @@ function loadConfig() {
 }
 
 const DEFAULT_CONFIG = {
-  siteName: 'yoursite.com',
+  siteName: 'train2aus.com',
   creatureName: 'Pip',
   faceShape: 'blob',
   palette: 'peach',
   geminiApiKey: '',
-  gaPropertyId: '',
-  gaClientId: '',
+  gaPropertyId: '505919713',
+  gaClientId: '1051045501804-p65g67m3t7gf35juddentahrvncuru7i.apps.googleusercontent.com',
   trafficMultiplier: 1,
 };
 
