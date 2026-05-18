@@ -39,11 +39,15 @@ const DEFAULT_CONFIG = {
 };
 
 function useViewportHeight() {
-  const [h, setH] = useState(window.innerHeight);
+  const [h, setH] = useState(window.visualViewport?.height || window.innerHeight);
   useEffect(() => {
-    const onResize = () => setH(window.innerHeight);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const update = () => setH(window.visualViewport?.height || window.innerHeight);
+    window.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('resize', update);
+    };
   }, []);
   return h;
 }
@@ -98,7 +102,7 @@ export default function App() {
 
   return (
     <div style={{
-      width: '100vw', height: '100vh', background: palette.bg,
+      width: '100vw', height: '100dvh', background: palette.bg,
       display: 'flex', flexDirection: 'column',
       fontFamily: '"M PLUS Rounded 1c", system-ui, sans-serif',
       fontWeight: 700, color: palette.ink, overflow: 'hidden',
