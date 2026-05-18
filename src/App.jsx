@@ -70,6 +70,7 @@ export default function App() {
   const [forceBar] = useState(() => new URLSearchParams(window.location.search).has('bar'));
   const barMode = forceBar || minDim < BAR_MODE_THRESHOLD;
   const barVertical = barMode && vpWidth < vpHeight;
+  const barDim = forceBar ? Math.min(minDim, 140) : minDim;
 
   const setConfig = (next) => {
     setConfigState(next);
@@ -135,27 +136,29 @@ export default function App() {
         height: barMode ? '100%' : 108,
         minHeight: barMode ? 0 : 108,
         width: '100%',
-        display: barVertical ? 'flex' : 'grid',
+        display: barVertical ? 'flex' : (barMode ? 'flex' : 'grid'),
         ...(barVertical
           ? { flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '8px 4px', gap: 8 }
-          : { gridTemplateColumns: barMode ? 'auto 1fr auto auto' : '130px 1fr auto', alignItems: 'center', padding: '0 22px 0 18px', gap: barMode ? 16 : 26 }
+          : barMode
+            ? { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', gap: 12 }
+            : { gridTemplateColumns: '130px 1fr auto', alignItems: 'center', padding: '0 22px 0 18px', gap: 26 }
         ),
         position: 'relative', zIndex: 2,
         overflowY: barVertical ? 'auto' : undefined,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barVertical ? '100%' : barMode ? 'auto' : 130, height: barVertical ? 'auto' : '100%', padding: barMode ? '4px 0' : 0 }}>
-          <KawaiiCreature mood={mood} size={barMode ? (barVertical ? Math.max(vpWidth * 0.7, 40) : Math.max(minDim * 0.85, 40)) : 104} shape={config.faceShape} />
+          <KawaiiCreature mood={mood} size={barMode ? (barVertical ? Math.max(barDim * 0.7, 40) : Math.max(barDim * 0.85, 40)) : 104} shape={config.faceShape} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', width: barVertical ? '100%' : undefined, height: barVertical ? 'auto' : '100%', minWidth: 0, fontSize: barMode ? Math.max(minDim * 0.16, 11) : undefined }}>
-          <SpeechBubble palette={palette}>
+        <div style={{ display: 'flex', alignItems: 'center', width: barVertical ? '100%' : undefined, flex: barMode && !barVertical ? '1 1 0' : undefined, maxWidth: barMode && !barVertical ? 400 : undefined, height: barVertical ? 'auto' : '100%', minWidth: 0 }}>
+          <SpeechBubble palette={palette} compact={barMode}>
             <TypewriterText text={message} />
           </SpeechBubble>
         </div>
-        {!barVertical && <StatsCell data={data} palette={palette} mood={mood} />}
+        {!barVertical && <div style={{ flex: barMode ? '2 1 0' : undefined, display: 'flex', justifyContent: 'center' }}><StatsCell data={data} palette={palette} mood={mood} barDim={barMode ? barDim : 0} /></div>}
         {barMode && (
           <button onClick={() => setSettingsOpen(o => !o)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: Math.max(14, minDim * 0.3), color: palette.subInk,
+            fontSize: Math.max(14, barDim * 0.3), color: palette.subInk,
             padding: barVertical ? '4px' : '0 4px', lineHeight: 1, opacity: 0.5,
           }}>✿</button>
         )}

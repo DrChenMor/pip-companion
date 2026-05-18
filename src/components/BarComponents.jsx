@@ -40,19 +40,20 @@ function Doodle({ item, palette }) {
   return <div style={{ ...style, borderRadius: '50%', background: 'currentColor' }} />;
 }
 
-export function SpeechBubble({ children, palette }) {
-  const border = '2.5px solid ' + palette.ink;
+export function SpeechBubble({ children, palette, compact }) {
+  const s = compact ? 0.7 : 1;
+  const border = `${2*s}px solid ${palette.ink}`;
   return (
     <div style={{
-      position: 'relative', background: '#FFFFFF', border, borderRadius: 18,
-      padding: '10px 22px', fontSize: 19, lineHeight: 1.2, letterSpacing: 0.1,
-      fontWeight: 700, color: palette.ink, width: '100%', maxHeight: 80,
+      position: 'relative', background: '#FFFFFF', border, borderRadius: 12*s,
+      padding: `${6*s}px ${14*s}px`, fontSize: compact ? 12 : 19, lineHeight: 1.2, letterSpacing: 0.1,
+      fontWeight: 700, color: palette.ink, width: '100%', maxHeight: compact ? 50 : 80,
       overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2,
-      WebkitBoxOrient: 'vertical', boxShadow: '3px 3px 0 ' + palette.ink,
+      WebkitBoxOrient: 'vertical', boxShadow: `${2*s}px ${2*s}px 0 ${palette.ink}`,
     }}>
       <div style={{
-        position: 'absolute', left: -10, top: '55%', transform: 'translateY(-50%) rotate(45deg)',
-        width: 16, height: 16, background: '#FFFFFF', borderLeft: border, borderBottom: border,
+        position: 'absolute', left: -7*s, top: '55%', transform: 'translateY(-50%) rotate(45deg)',
+        width: 10*s, height: 10*s, background: '#FFFFFF', borderLeft: border, borderBottom: border,
       }} />
       {children}
     </div>
@@ -81,50 +82,50 @@ function Caret() {
   return <span style={{ opacity: on ? 0.5 : 0, marginLeft: 2 }}>▍</span>;
 }
 
-export function LiveBadge({ value, palette }) {
+export function LiveBadge({ value, palette, s = 1 }) {
   const [pulse, setPulse] = useState(false);
   useEffect(() => { const id = setInterval(() => setPulse(p => !p), 1000); return () => clearInterval(id); }, []);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '4px 14px 6px', background: palette.stickers[0], border: '2.2px solid ' + palette.ink, borderRadius: 14, boxShadow: '2.5px 2.5px 0 ' + palette.ink, minWidth: 92 }}>
-      <span style={{ fontSize: 10, letterSpacing: 1.5, display: 'flex', alignItems: 'center', gap: 5, color: palette.ink, fontWeight: 800 }}>
-        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#E83A6E', boxShadow: pulse ? '0 0 0 3px rgba(232,58,110,0.3)' : 'none', transition: 'box-shadow 0.4s' }} />
-        LIVE ♡ NOW
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: `${3*s}px ${10*s}px ${4*s}px`, background: palette.stickers[0], border: `${2*s}px solid ${palette.ink}`, borderRadius: 10*s, boxShadow: `${2*s}px ${2*s}px 0 ${palette.ink}`, minWidth: 0 }}>
+      <span style={{ fontSize: 8*s, letterSpacing: 1*s, display: 'flex', alignItems: 'center', gap: 3*s, color: palette.ink, fontWeight: 800 }}>
+        <span style={{ width: 6*s, height: 6*s, borderRadius: '50%', background: '#E83A6E', boxShadow: pulse ? `0 0 0 ${2*s}px rgba(232,58,110,0.3)` : 'none', transition: 'box-shadow 0.4s' }} />
+        LIVE
       </span>
-      <span style={{ fontSize: 38, fontWeight: 900, lineHeight: 0.95, marginTop: 2, fontVariantNumeric: 'tabular-nums', color: palette.ink }}>{value}</span>
+      <span style={{ fontSize: 28*s, fontWeight: 900, lineHeight: 0.95, marginTop: 1*s, fontVariantNumeric: 'tabular-nums', color: palette.ink }}>{value}</span>
     </div>
   );
 }
 
-export function StatCard({ label, value, color, palette, suffix }) {
+export function StatCard({ label, value, color, palette, suffix, s = 1 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '4px 12px 6px', background: color, border: '2.2px solid ' + palette.ink, borderRadius: 14, boxShadow: '2.5px 2.5px 0 ' + palette.ink, minWidth: 78 }}>
-      <span style={{ fontSize: 9.5, letterSpacing: 1.2, color: palette.ink, fontWeight: 800, textTransform: 'uppercase' }}>{label}</span>
-      <span style={{ fontSize: 22, fontWeight: 900, lineHeight: 1, marginTop: 3, fontVariantNumeric: 'tabular-nums', color: palette.ink }}>
-        {value}{suffix && <span style={{ fontSize: 11, marginLeft: 4, fontWeight: 700 }}>{suffix}</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: `${3*s}px ${8*s}px ${4*s}px`, background: color, border: `${2*s}px solid ${palette.ink}`, borderRadius: 10*s, boxShadow: `${2*s}px ${2*s}px 0 ${palette.ink}`, minWidth: 0 }}>
+      <span style={{ fontSize: 8*s, letterSpacing: 1*s, color: palette.ink, fontWeight: 800, textTransform: 'uppercase' }}>{label}</span>
+      <span style={{ fontSize: 18*s, fontWeight: 900, lineHeight: 1, marginTop: 2*s, fontVariantNumeric: 'tabular-nums', color: palette.ink }}>
+        {value}{suffix && <span style={{ fontSize: 9*s, marginLeft: 3*s, fontWeight: 700 }}>{suffix}</span>}
       </span>
     </div>
   );
 }
 
-export function TopPageCard({ data, palette }) {
+export function TopPageCard({ data, palette, s = 1 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: '4px 14px 6px', background: '#FFFFFF', border: '2.2px solid ' + palette.ink, borderRadius: 14, boxShadow: '2.5px 2.5px 0 ' + palette.ink, minWidth: 200, maxWidth: 240 }}>
-      <span style={{ fontSize: 9.5, letterSpacing: 1.2, color: palette.ink, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5 }}>
-        <span style={{ background: '#FF4D6D', color: '#fff', padding: '1px 6px', borderRadius: 6, fontSize: 9, fontWeight: 900 }}>HOT</span> TOP · NOW
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: `${3*s}px ${10*s}px ${4*s}px`, background: '#FFFFFF', border: `${2*s}px solid ${palette.ink}`, borderRadius: 10*s, boxShadow: `${2*s}px ${2*s}px 0 ${palette.ink}`, minWidth: 0, maxWidth: 200*s }}>
+      <span style={{ fontSize: 8*s, letterSpacing: 1*s, color: palette.ink, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 3*s }}>
+        <span style={{ background: '#FF4D6D', color: '#fff', padding: `${1*s}px ${4*s}px`, borderRadius: 4*s, fontSize: 7*s, fontWeight: 900 }}>HOT</span> TOP
       </span>
-      <span style={{ fontSize: 17, fontWeight: 800, marginTop: 2, color: palette.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{data.topPage}</span>
-      <span style={{ fontSize: 10, color: palette.subInk, marginTop: 1, fontWeight: 600 }}>via {data.topReferrer} · {countryFlair(data.country)}</span>
+      <span style={{ fontSize: 13*s, fontWeight: 800, marginTop: 1*s, color: palette.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{data.topPage}</span>
+      <span style={{ fontSize: 8*s, color: palette.subInk, marginTop: 1, fontWeight: 600 }}>via {data.topReferrer} · {countryFlair(data.country)}</span>
     </div>
   );
 }
 
-export function Sparkline({ values, palette }) {
-  const W = 110, H = 56;
+export function Sparkline({ values, palette, s = 1 }) {
+  const W = Math.round(80*s), H = Math.round(40*s);
   if (!values || values.length < 2) return <div style={{ width: W, height: H }} />;
   const min = Math.min(...values), max = Math.max(...values, min + 1);
   const pts = values.map((v, i) => {
     const x = (i / (values.length - 1)) * W;
-    const y = H - ((v - min) / (max - min)) * (H - 8) - 4;
+    const y = H - ((v - min) / (max - min)) * (H - 6*s) - 3*s;
     return [x, y];
   });
   const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
@@ -134,9 +135,9 @@ export function Sparkline({ values, palette }) {
     <svg width={W} height={H} style={{ display: 'block' }}>
       <defs><linearGradient id="kspark" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity="0.7" /><stop offset="100%" stopColor={color} stopOpacity="0" /></linearGradient></defs>
       <path d={area} fill="url(#kspark)" />
-      <path d={d} stroke={palette.ink} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="3.5" fill={palette.ink} />
-      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r="1.5" fill="#fff" />
+      <path d={d} stroke={palette.ink} strokeWidth={2*s} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r={3*s} fill={palette.ink} />
+      <circle cx={pts[pts.length-1][0]} cy={pts[pts.length-1][1]} r={1.5*s} fill="#fff" />
     </svg>
   );
 }
@@ -148,17 +149,16 @@ export function Divider({ palette, kind = 'star' }) {
   return <span style={{ fontSize: 16, color: palette.subInk }}>·</span>;
 }
 
-export function StatsCell({ data, palette, mood }) {
+export function StatsCell({ data, palette, mood, barDim }) {
+  const s = barDim > 0 ? Math.max(barDim / 140, 0.5) : 1;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 14, position: 'relative', zIndex: 1 }}>
-      <LiveBadge value={data.active} palette={palette} mood={mood} />
-      <Divider palette={palette} kind="heart" />
-      <Sparkline values={data.trend} palette={palette} />
-      <Divider palette={palette} kind="dot" />
-      <StatCard label="24h views" value={fmt(data.pageviews24h)} color={palette.stickers[1]} palette={palette} />
-      <StatCard label="bounce" value={Math.round(data.bounceRate * 100) + '%'} color={palette.stickers[2]} palette={palette} suffix={bounceFlair(data.bounceRate)} />
-      <StatCard label="avg time" value={fmtTime(data.avgSession)} color={palette.stickers[3]} palette={palette} />
-      <TopPageCard data={data} palette={palette} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(8*s), position: 'relative', zIndex: 1, flexShrink: 0 }}>
+      <LiveBadge value={data.active} palette={palette} mood={mood} s={s} />
+      <Sparkline values={data.trend} palette={palette} s={s} />
+      <StatCard label="24h views" value={fmt(data.pageviews24h)} color={palette.stickers[1]} palette={palette} s={s} />
+      <StatCard label="bounce" value={Math.round(data.bounceRate * 100) + '%'} color={palette.stickers[2]} palette={palette} suffix={bounceFlair(data.bounceRate)} s={s} />
+      <StatCard label="avg time" value={fmtTime(data.avgSession)} color={palette.stickers[3]} palette={palette} s={s} />
+      <TopPageCard data={data} palette={palette} s={s} />
     </div>
   );
 }
