@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function SettingsPanel({ config, setConfig, palette, onClose }) {
+export default function SettingsPanel({ config, setConfig, palette, onClose, gaError, gaConnected }) {
   const [showApiKey, setShowApiKey] = useState(false);
 
   return (
@@ -37,6 +37,15 @@ export default function SettingsPanel({ config, setConfig, palette, onClose }) {
         <Section label="google analytics">
           <Field label="GA4 Property ID" value={config.gaPropertyId} onChange={v => setConfig({ ...config, gaPropertyId: v })} placeholder="e.g. 123456789" />
           <Field label="GA API Key" value={config.gaApiKey} onChange={v => setConfig({ ...config, gaApiKey: v })} type="password" />
+          {config.gaPropertyId && config.gaApiKey && (
+            <div style={{
+              fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 8,
+              background: gaError ? '#FFE0E0' : gaConnected ? '#D4EDDA' : '#FFF3CD',
+              color: gaError ? '#9B1C1C' : gaConnected ? '#155724' : '#856404',
+            }}>
+              {gaError ? `error: ${gaError}` : gaConnected ? 'connected to GA4 ♡' : 'connecting...'}
+            </div>
+          )}
           <div style={{ fontSize: 10, color: palette.subInk, fontWeight: 600, lineHeight: 1.4 }}>
             leave blank to use simulated demo data ♡
           </div>

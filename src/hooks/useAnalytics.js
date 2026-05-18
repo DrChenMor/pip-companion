@@ -141,6 +141,7 @@ export function useGoogleAnalytics({ propertyId, apiKey, refreshInterval = 30000
       }));
       setError(null);
     } catch (err) {
+      console.warn('GA4 error:', err.message);
       setError(err.message);
     }
   }, [propertyId, apiKey]);

@@ -53,7 +53,7 @@ export default function App() {
   };
 
   const mockData = useMockAnalytics({ multiplier: config.trafficMultiplier, spike });
-  const { gaData } = useGoogleAnalytics({
+  const { gaData, error: gaError } = useGoogleAnalytics({
     propertyId: config.gaPropertyId,
     apiKey: config.gaApiKey,
   });
@@ -214,7 +214,7 @@ export default function App() {
       </div>}
 
       {!barMode && <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} />}
-      {!barMode && settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} />}
+      {!barMode && settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} gaError={gaError} gaConnected={!!gaData} />}
     </div>
   );
 }
