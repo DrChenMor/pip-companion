@@ -40,19 +40,20 @@ function Doodle({ item, palette }) {
   return <div style={{ ...style, borderRadius: '50%', background: 'currentColor' }} />;
 }
 
-export function SpeechBubble({ children, palette, compact }) {
-  const border = '2.5px solid ' + palette.ink;
+export function SpeechBubble({ children, palette, barDim }) {
+  const s = barDim > 0 ? Math.max(barDim / 108, 0.5) : 1;
+  const border = `${2.5*s}px solid ${palette.ink}`;
   return (
     <div style={{
-      position: 'relative', background: '#FFFFFF', border, borderRadius: 18,
-      padding: compact ? '6px 14px' : '10px 22px', fontSize: compact ? 14 : 19, lineHeight: 1.2, letterSpacing: 0.1,
-      fontWeight: 700, color: palette.ink, width: '100%', maxHeight: compact ? 60 : 80,
+      position: 'relative', background: '#FFFFFF', border, borderRadius: 18*s,
+      padding: `${10*s}px ${22*s}px`, fontSize: 19*s, lineHeight: 1.2, letterSpacing: 0.1,
+      fontWeight: 700, color: palette.ink, width: '100%', maxHeight: 80*s,
       overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2,
-      WebkitBoxOrient: 'vertical', boxShadow: '3px 3px 0 ' + palette.ink,
+      WebkitBoxOrient: 'vertical', boxShadow: `${3*s}px ${3*s}px 0 ${palette.ink}`,
     }}>
       <div style={{
-        position: 'absolute', left: -10, top: '55%', transform: 'translateY(-50%) rotate(45deg)',
-        width: 16, height: 16, background: '#FFFFFF', borderLeft: border, borderBottom: border,
+        position: 'absolute', left: -10*s, top: '55%', transform: 'translateY(-50%) rotate(45deg)',
+        width: 16*s, height: 16*s, background: '#FFFFFF', borderLeft: border, borderBottom: border,
       }} />
       {children}
     </div>

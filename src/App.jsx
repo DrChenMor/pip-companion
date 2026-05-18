@@ -149,12 +149,13 @@ export default function App() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barVertical ? '100%' : barMode ? 'auto' : 130, height: barVertical ? 'auto' : '100%', padding: barMode ? '4px 0' : 0 }}>
           <KawaiiCreature mood={mood} size={barMode ? (barVertical ? Math.max(barDim * 0.7, 40) : Math.max(barDim * 0.85, 40)) : 104} shape={config.faceShape} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', width: barVertical ? '100%' : undefined, flex: barMode && !barVertical ? '1 1 0' : undefined, maxWidth: barMode && !barVertical ? 400 : undefined, height: barVertical ? 'auto' : '100%', minWidth: 0 }}>
-          <SpeechBubble palette={palette} compact={barMode}>
+        <div style={{ display: 'flex', alignItems: 'center', width: barVertical ? '100%' : undefined, flex: barMode && !barVertical ? '1 1 0' : undefined, height: barVertical ? 'auto' : '100%', minWidth: 0 }}>
+          <SpeechBubble palette={palette} barDim={barMode ? barDim : 0}>
             <TypewriterText text={message} />
           </SpeechBubble>
         </div>
-        {!barVertical && <div style={{ flex: barMode ? '2 1 0' : undefined, display: 'flex', justifyContent: 'center' }}><StatsCell data={data} palette={palette} mood={mood} barDim={barMode ? barDim : 0} /></div>}
+        {!barVertical && <div style={{ flex: barMode ? '1 0 auto' : undefined, display: 'flex', justifyContent: 'center' }}><StatsCell data={data} palette={palette} mood={mood} barDim={barMode ? barDim : 0} /></div>}
+        {barMode && !barVertical && <MoodBadge mood={mood} palette={palette} barDim={barDim} />}
         {barMode && (
           <button onClick={() => setSettingsOpen(o => !o)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
@@ -308,6 +309,26 @@ function MiniTrend({ values, palette }) {
       <path d={d + ` L ${W},${H} L 0,${H} Z`} fill={palette.stickers[1]} fillOpacity="0.3" />
       <path d={d} stroke={palette.ink} strokeWidth="2" fill="none" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function MoodBadge({ mood, palette, barDim }) {
+  const s = Math.max(barDim / 108, 0.5);
+  const moodEmoji = {
+    sleeping: 'zzz', drowsy: '~.~', bored: '...', content: '♡', focused: '◎',
+    curious: '?!', happy: '♡♡', excited: '!!', surprised: '?!', overwhelmed: '!!!',
+    dizzy: '@@', anxious: '...', proud: '★', fancy: '✿', smitten: '♡♡♡',
+  };
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: `${4*s}px ${14*s}px`, background: palette.stickers[3],
+      border: `${2.2*s}px solid ${palette.ink}`, borderRadius: 14*s,
+      boxShadow: `${2.5*s}px ${2.5*s}px 0 ${palette.ink}`,
+    }}>
+      <span style={{ fontSize: 20*s, fontWeight: 900, lineHeight: 1, color: palette.ink }}>{mood}</span>
+      <span style={{ fontSize: 10*s, color: palette.subInk, fontWeight: 700, marginTop: 2*s }}>{moodEmoji[mood] || '♡'}</span>
+    </div>
   );
 }
 
