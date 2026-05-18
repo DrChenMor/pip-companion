@@ -1,16 +1,18 @@
 import { useState } from 'react';
 
-export default function SettingsPanel({ config, setConfig, palette, onClose, gaError, gaConnected, googleAuth }) {
+export default function SettingsPanel({ config, setConfig, palette, onClose, gaError, gaConnected, googleAuth, fullscreen }) {
   const [showApiKey, setShowApiKey] = useState(false);
 
   return (
     <div style={{
-      position: 'fixed', left: 24, bottom: 24, width: 320,
-      background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(20px)',
-      borderRadius: 20, border: '2.5px solid ' + palette.ink,
-      boxShadow: '4px 4px 0 ' + palette.ink,
+      position: 'fixed',
+      ...(fullscreen
+        ? { top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', borderRadius: 0, border: 'none', boxShadow: 'none' }
+        : { left: 24, bottom: 24, width: 320, borderRadius: 20, border: '2.5px solid ' + palette.ink, boxShadow: '4px 4px 0 ' + palette.ink }
+      ),
+      background: fullscreen ? '#fff' : 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)',
       zIndex: 1000, fontFamily: '"M PLUS Rounded 1c", system-ui',
-      overflow: 'hidden',
+      overflow: 'auto',
     }}>
       <div style={{
         padding: '12px 16px', borderBottom: '2px solid ' + palette.ink,

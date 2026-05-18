@@ -13,7 +13,17 @@ const CONFIG_KEY = 'pip-companion-config';
 
 function loadConfig() {
   try {
-    return { ...DEFAULT_CONFIG, ...JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') };
+    const saved = { ...DEFAULT_CONFIG, ...JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}') };
+    const params = new URLSearchParams(window.location.search);
+    let dirty = false;
+    for (const [key, val] of params.entries()) {
+      if (key in DEFAULT_CONFIG && val) { saved[key] = val; dirty = true; }
+    }
+    if (dirty) {
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(saved));
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    return saved;
   } catch { return DEFAULT_CONFIG; }
 }
 
@@ -101,7 +111,7 @@ export default function App() {
         height: barMode ? '100%' : 108,
         minHeight: barMode ? 0 : 108,
         width: '100%',
-        display: 'grid', gridTemplateColumns: barMode ? 'auto 1fr auto' : '130px 1fr auto',
+        display: 'grid', gridTemplateColumns: barMode ? 'auto 1fr auto auto' : '130px 1fr auto',
         alignItems: 'center', padding: '0 22px 0 18px', gap: barMode ? 16 : 26,
         position: 'relative', zIndex: 2,
       }}>
@@ -114,6 +124,13 @@ export default function App() {
           </SpeechBubble>
         </div>
         <StatsCell data={data} palette={palette} mood={mood} />
+        {barMode && (
+          <button onClick={() => setSettingsOpen(o => !o)} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: Math.max(14, vpHeight * 0.2), color: palette.subInk,
+            padding: '0 4px', lineHeight: 1, opacity: 0.5,
+          }}>✿</button>
+        )}
       </div>
 
       {!barMode && <div style={{
@@ -216,7 +233,7 @@ export default function App() {
       </div>}
 
       {!barMode && <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} />}
-      {!barMode && settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} gaError={gaError} gaConnected={!!gaData} googleAuth={googleAuth} />}
+      {settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} gaError={gaError} gaConnected={!!gaData} googleAuth={googleAuth} fullscreen={barMode} />}
     </div>
   );
 }

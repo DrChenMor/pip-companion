@@ -1,0 +1,15 @@
+{
+  "name": "Pip - Site Companion",
+  "short_name": "Pip",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#FFF4E6",
+  "theme_color": "#FFF4E6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
