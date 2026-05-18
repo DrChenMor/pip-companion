@@ -70,7 +70,7 @@ export default function App() {
   const [forceBar] = useState(() => new URLSearchParams(window.location.search).has('bar'));
   const barMode = forceBar || minDim < BAR_MODE_THRESHOLD;
   const barVertical = barMode && vpWidth < vpHeight;
-  const barDim = forceBar ? Math.min(minDim, 140) : minDim;
+  const barDim = barMode ? (barVertical ? vpWidth : vpHeight) : minDim;
 
   const setConfig = (next) => {
     setConfigState(next);
