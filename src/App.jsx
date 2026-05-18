@@ -67,7 +67,8 @@ export default function App() {
   const spike = 0;
   const { w: vpWidth, h: vpHeight } = useViewportSize();
   const minDim = Math.min(vpWidth, vpHeight);
-  const barMode = minDim < BAR_MODE_THRESHOLD;
+  const [forceBar] = useState(() => new URLSearchParams(window.location.search).has('bar'));
+  const barMode = forceBar || minDim < BAR_MODE_THRESHOLD;
   const barVertical = barMode && vpWidth < vpHeight;
 
   const setConfig = (next) => {
