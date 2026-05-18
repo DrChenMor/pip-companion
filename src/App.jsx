@@ -100,6 +100,17 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  useEffect(() => {
+    if (!barMode) return;
+    const goFullscreen = () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+      }
+    };
+    document.addEventListener('click', goFullscreen, { once: true });
+    return () => document.removeEventListener('click', goFullscreen);
+  }, [barMode]);
+
   return (
     <div style={{
       width: '100vw', height: '100dvh', background: palette.bg,
@@ -119,10 +130,10 @@ export default function App() {
         alignItems: 'center', padding: '0 22px 0 18px', gap: barMode ? 16 : 26,
         position: 'relative', zIndex: 2,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barMode ? 'auto' : 130, height: '100%' }}>
-          <KawaiiCreature mood={mood} size={barMode ? Math.min(vpHeight - 16, 80) : 104} shape={config.faceShape} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barMode ? 'auto' : 130, height: '100%', padding: barMode ? '4px 0' : 0 }}>
+          <KawaiiCreature mood={mood} size={barMode ? Math.max(vpHeight * 0.85, 40) : 104} shape={config.faceShape} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', height: '100%', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%', minWidth: 0, fontSize: barMode ? Math.max(vpHeight * 0.22, 12) : undefined }}>
           <SpeechBubble palette={palette}>
             <TypewriterText text={message} />
           </SpeechBubble>
@@ -131,7 +142,7 @@ export default function App() {
         {barMode && (
           <button onClick={() => setSettingsOpen(o => !o)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: Math.max(14, vpHeight * 0.2), color: palette.subInk,
+            fontSize: Math.max(14, vpHeight * 0.3), color: palette.subInk,
             padding: '0 4px', lineHeight: 1, opacity: 0.5,
           }}>✿</button>
         )}
