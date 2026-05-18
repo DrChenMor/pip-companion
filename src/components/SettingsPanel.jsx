@@ -1,7 +1,21 @@
 import { useState } from 'react';
 
+function buildSetupUrl(config) {
+  const params = new URLSearchParams();
+  if (config.siteName && config.siteName !== 'yoursite.com') params.set('siteName', config.siteName);
+  if (config.creatureName && config.creatureName !== 'Pip') params.set('creatureName', config.creatureName);
+  if (config.gaClientId) params.set('gaClientId', config.gaClientId);
+  if (config.gaPropertyId) params.set('gaPropertyId', config.gaPropertyId);
+  if (config.geminiApiKey) params.set('geminiApiKey', config.geminiApiKey);
+  if (config.palette && config.palette !== 'peach') params.set('palette', config.palette);
+  if (config.faceShape && config.faceShape !== 'blob') params.set('faceShape', config.faceShape);
+  const base = window.location.origin + window.location.pathname;
+  return base + '?' + params.toString();
+}
+
 export default function SettingsPanel({ config, setConfig, palette, onClose, gaError, gaConnected, googleAuth, fullscreen }) {
   const [showApiKey, setShowApiKey] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   return (
     <div style={{
@@ -71,6 +85,34 @@ export default function SettingsPanel({ config, setConfig, palette, onClose, gaE
           )}
           <div style={{ fontSize: 10, color: palette.subInk, fontWeight: 600, lineHeight: 1.4 }}>
             leave blank to use simulated demo data ♡
+          </div>
+        </Section>
+
+        <Section label="setup link">
+          <div style={{ fontSize: 10, color: palette.subInk, fontWeight: 600, lineHeight: 1.4, marginBottom: 2 }}>
+            copy this link to set up Pip on another device ♡
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              readOnly value={buildSetupUrl(config)}
+              style={{
+                flex: 1, padding: '6px 10px', border: '1.5px solid #ddd',
+                borderRadius: 8, fontSize: 10, fontFamily: 'inherit', fontWeight: 600,
+                outline: 'none', background: '#fafafa', color: palette.ink,
+              }}
+              onFocus={e => e.target.select()}
+            />
+            <button onClick={() => {
+              navigator.clipboard.writeText(buildSetupUrl(config));
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }} style={{
+              padding: '6px 12px', borderRadius: 8,
+              border: '2px solid ' + palette.ink, cursor: 'pointer',
+              background: copied ? palette.stickers[2] : '#fff',
+              fontWeight: 700, fontSize: 11, color: palette.ink,
+              fontFamily: 'inherit', whiteSpace: 'nowrap',
+            }}>{copied ? 'copied!' : 'copy'}</button>
           </div>
         </Section>
 
