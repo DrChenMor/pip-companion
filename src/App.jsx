@@ -28,13 +28,13 @@ function loadConfig() {
 }
 
 const DEFAULT_CONFIG = {
-  siteName: 'train2aus.com',
-  creatureName: 'Pip',
+  siteName: import.meta.env.VITE_SITE_NAME || 'train2aus.com',
+  creatureName: import.meta.env.VITE_CREATURE_NAME || 'Pip',
   faceShape: 'blob',
   palette: 'peach',
-  geminiApiKey: '',
-  gaPropertyId: '505919713',
-  gaClientId: '1051045501804-p65g67m3t7gf35juddentahrvncuru7i.apps.googleusercontent.com',
+  geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
+  gaPropertyId: import.meta.env.VITE_GA_PROPERTY_ID || '',
+  gaClientId: import.meta.env.VITE_GA_CLIENT_ID || '',
   trafficMultiplier: 1,
 };
 
