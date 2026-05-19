@@ -30,11 +30,13 @@ export function useInsightMessage({ data, mood, gemini }) {
   const [msg, setMsg] = useState(() => cannedMessage(data, mood));
   const lastMood = useRef(mood);
   const lastEventCount = useRef(0);
+  const lastGeminiCall = useRef(0);
+  const backoff = useRef(0);
 
   useEffect(() => {
     if (mood !== lastMood.current) {
       lastMood.current = mood;
-      generate();
+      setMsg(cannedMessage(data, mood));
     }
   }, [mood]);
 
@@ -49,14 +51,28 @@ export function useInsightMessage({ data, mood, gemini }) {
   }, [data.events]);
 
   useEffect(() => {
-    const id = setInterval(generate, 12000);
+    const id = setInterval(() => {
+      const now = Date.now();
+      const minWait = gemini ? Math.max(60000, backoff.current) : 15000;
+      if (now - lastGeminiCall.current < minWait) {
+        setMsg(cannedMessage(data, mood));
+        return;
+      }
+      generate();
+    }, 15000);
     return () => clearInterval(id);
   }, [mood, gemini]);
 
   async function generate() {
     if (gemini) {
+      lastGeminiCall.current = Date.now();
       const aiMsg = await gemini.generateInsight();
-      if (aiMsg) { setMsg(aiMsg); return; }
+      if (aiMsg) {
+        backoff.current = 0;
+        setMsg(aiMsg);
+        return;
+      }
+      backoff.current = Math.min((backoff.current || 60000) * 2, 300000);
     }
     setMsg(cannedMessage(data, mood));
   }
