@@ -161,6 +161,46 @@ export function useGoogleAnalytics({ propertyId, accessToken, refreshInterval = 
   return { gaData, error };
 }
 
+export function useServerAnalytics({ refreshInterval = 30000 } = {}) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await fetch('/api/analytics');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `API: ${res.status}`);
+      }
+      const json = await res.json();
+      setData(prev => ({
+        active: json.active,
+        pageviews24h: json.pageviews24h,
+        sessions24h: json.sessions24h,
+        bounceRate: json.bounceRate,
+        avgSession: json.avgSession,
+        topPage: json.topPage || '/',
+        topReferrer: json.topReferrer || 'direct',
+        country: json.country || 'US',
+        trend: [...(prev?.trend || []).slice(-79), json.active],
+        events: prev?.events || [],
+      }));
+      setError(null);
+    } catch (err) {
+      console.warn('Server analytics error:', err.message);
+      setError(err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    const id = setInterval(fetchData, refreshInterval);
+    return () => clearInterval(id);
+  }, [fetchData, refreshInterval]);
+
+  return { data, error };
+}
+
 export function moodFromAnalytics(d) {
   const hour = new Date().getHours();
   const isNight = hour < 6 || hour >= 23;

@@ -3,7 +3,7 @@ import KawaiiCreature from './components/KawaiiCreature';
 import { BackgroundDoodles, SpeechBubble, TypewriterText, StatsCell } from './components/BarComponents';
 import ChatPanel from './components/ChatPanel';
 import SettingsPanel from './components/SettingsPanel';
-import { useMockAnalytics, useGoogleAnalytics, moodFromAnalytics } from './hooks/useAnalytics';
+import { useMockAnalytics, useGoogleAnalytics, useServerAnalytics, moodFromAnalytics } from './hooks/useAnalytics';
 import { useGemini } from './hooks/useGemini';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
 import { useInsightMessage } from './hooks/useInsightMessage';
@@ -79,12 +79,13 @@ export default function App() {
 
   const googleAuth = useGoogleAuth(config.gaClientId);
   const mockData = useMockAnalytics({ multiplier: config.trafficMultiplier, spike });
+  const { data: serverData, error: serverError } = useServerAnalytics();
   const { gaData, error: gaError } = useGoogleAnalytics({
     propertyId: config.gaPropertyId,
     accessToken: googleAuth.accessToken,
   });
 
-  const data = (config.gaPropertyId && googleAuth.isSignedIn && gaData) ? gaData : mockData;
+  const data = serverData || ((config.gaPropertyId && googleAuth.isSignedIn && gaData) ? gaData : mockData);
   const mood = moodFromAnalytics(data);
   const palette = PALETTES[config.palette] || PALETTES.peach;
 
