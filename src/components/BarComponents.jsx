@@ -40,21 +40,22 @@ function Doodle({ item, palette }) {
   return <div style={{ ...style, borderRadius: '50%', background: 'currentColor' }} />;
 }
 
-export function SpeechBubble({ children, palette, barDim }) {
+export function SpeechBubble({ children, palette, barDim, mobile }) {
   const s = barDim > 0 ? Math.max(barDim / 108, 0.5) : 1;
   const border = `${2.5*s}px solid ${palette.ink}`;
   return (
     <div style={{
-      position: 'relative', background: '#FFFFFF', border, borderRadius: 18*s,
-      padding: `${10*s}px ${22*s}px`, fontSize: 19*s, lineHeight: 1.2, letterSpacing: 0.1,
-      fontWeight: 700, color: palette.ink, width: '100%', maxHeight: 80*s,
-      overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2,
-      WebkitBoxOrient: 'vertical', boxShadow: `${3*s}px ${3*s}px 0 ${palette.ink}`,
+      position: 'relative', background: '#FFFFFF', border, borderRadius: mobile ? 18 : 18*s,
+      padding: mobile ? '12px 18px' : `${10*s}px ${22*s}px`,
+      fontSize: mobile ? 16 : 19*s, lineHeight: 1.3, letterSpacing: 0.1,
+      fontWeight: 700, color: palette.ink, width: '100%',
+      ...(mobile ? { maxHeight: 'none' } : { maxHeight: 80*s, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }),
+      boxShadow: `${3*s}px ${3*s}px 0 ${palette.ink}`,
     }}>
-      <div style={{
+      {!mobile && <div style={{
         position: 'absolute', left: -10*s, top: '55%', transform: 'translateY(-50%) rotate(45deg)',
         width: 16*s, height: 16*s, background: '#FFFFFF', borderLeft: border, borderBottom: border,
-      }} />
+      }} />}
       {children}
     </div>
   );

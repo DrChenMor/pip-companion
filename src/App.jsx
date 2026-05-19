@@ -132,8 +132,28 @@ export default function App() {
     }}>
       <BackgroundDoodles palette={palette} mood={mood} />
 
-      {/* Top bar with stats */}
-      <div style={{
+      {/* Mobile header: Pip centered + speech bubble below */}
+      {!barMode && vpWidth < 500 && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 16px 6px', position: 'relative', zIndex: 2 }}>
+          <KawaiiCreature mood={mood} size={140} shape={config.faceShape} />
+          <div style={{ width: '100%', marginTop: 10 }}>
+            <SpeechBubble palette={palette} barDim={0} mobile>
+              <TypewriterText text={message} />
+            </SpeechBubble>
+          </div>
+          <button onClick={() => setSettingsOpen(o => !o)} style={{
+            position: 'absolute', top: 10, right: 12, background: 'none', border: 'none',
+            cursor: 'pointer', fontSize: 18, color: palette.subInk, opacity: 0.6,
+          }}>✿</button>
+          <button onClick={() => setChatOpen(o => !o)} style={{
+            position: 'absolute', top: 10, left: 12, background: 'none', border: 'none',
+            cursor: 'pointer', fontSize: 14, color: palette.subInk, opacity: 0.6, fontFamily: 'inherit', fontWeight: 700,
+          }}>♡</button>
+        </div>
+      )}
+
+      {/* Desktop/bar header */}
+      {(barMode || vpWidth >= 500) && <div style={{
         height: barMode ? '100%' : 108,
         minHeight: barMode ? 0 : 108,
         width: '100%',
@@ -164,12 +184,12 @@ export default function App() {
             padding: barVertical ? '4px' : '0 4px', lineHeight: 1, opacity: 0.5,
           }}>✿</button>
         )}
-      </div>
+      </div>}
 
       {!barMode && <div style={{
         flex: 1, display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-        gap: 16, padding: '16px 22px', overflowY: 'auto',
+        gridTemplateColumns: vpWidth < 500 ? '1fr' : 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: vpWidth < 500 ? 10 : 16, padding: vpWidth < 500 ? '10px 12px 16px' : '16px 22px 60px', overflowY: 'auto',
         position: 'relative', zIndex: 2,
       }}>
         <DashCard palette={palette} title="live activity" color={palette.stickers[0]}>
@@ -253,7 +273,7 @@ export default function App() {
         )}
       </div>}
 
-      {!barMode && <div style={{
+      {!barMode && vpWidth >= 500 && <div style={{
         position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)',
         display: 'flex', gap: 8, zIndex: 999,
       }}>
@@ -266,7 +286,7 @@ export default function App() {
       </div>}
 
       {!barMode && <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} />}
-      {settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} gaError={gaError} gaConnected={!!gaData} googleAuth={googleAuth} fullscreen={barMode} />}
+      {settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} fullscreen={barMode} />}
     </div>
   );
 }

@@ -1,22 +1,4 @@
-import { useState } from 'react';
-
-function buildSetupUrl(config) {
-  const params = new URLSearchParams();
-  if (config.siteName && config.siteName !== 'yoursite.com') params.set('siteName', config.siteName);
-  if (config.creatureName && config.creatureName !== 'Pip') params.set('creatureName', config.creatureName);
-  if (config.gaClientId) params.set('gaClientId', config.gaClientId);
-  if (config.gaPropertyId) params.set('gaPropertyId', config.gaPropertyId);
-  if (config.geminiApiKey) params.set('geminiApiKey', config.geminiApiKey);
-  if (config.palette && config.palette !== 'peach') params.set('palette', config.palette);
-  if (config.faceShape && config.faceShape !== 'blob') params.set('faceShape', config.faceShape);
-  const base = window.location.origin + window.location.pathname;
-  return base + '?' + params.toString();
-}
-
-export default function SettingsPanel({ config, setConfig, palette, onClose, gaError, gaConnected, googleAuth, fullscreen }) {
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [copied, setCopied] = useState(false);
-
+export default function SettingsPanel({ config, setConfig, palette, onClose, fullscreen }) {
   return (
     <div style={{
       position: 'fixed',
@@ -38,85 +20,11 @@ export default function SettingsPanel({ config, setConfig, palette, onClose, gaE
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Section label="identity">
-          <Field label="Site name" value={config.siteName} onChange={v => setConfig({ ...config, siteName: v })} />
-          <Field label="Companion name" value={config.creatureName} onChange={v => setConfig({ ...config, creatureName: v })} />
+        <Section label="companion">
+          <Field label="Name" value={config.creatureName} onChange={v => setConfig({ ...config, creatureName: v })} />
         </Section>
 
-        <Section label="gemini ai">
-          <Field label="Gemini API key" value={config.geminiApiKey} onChange={v => setConfig({ ...config, geminiApiKey: v })} type={showApiKey ? 'text' : 'password'} />
-          <label style={{ display: 'flex', gap: 6, fontSize: 11, color: palette.subInk, fontWeight: 600, cursor: 'pointer' }}>
-            <input type="checkbox" checked={showApiKey} onChange={() => setShowApiKey(p => !p)} /> show key
-          </label>
-        </Section>
-
-        <Section label="google analytics">
-          <Field label="OAuth Client ID" value={config.gaClientId} onChange={v => setConfig({ ...config, gaClientId: v })} placeholder="xxxxx.apps.googleusercontent.com" />
-          <Field label="GA4 Property ID" value={config.gaPropertyId} onChange={v => setConfig({ ...config, gaPropertyId: v })} placeholder="e.g. 505919713" />
-          {config.gaClientId && config.gaPropertyId && (
-            googleAuth.isSignedIn ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <div style={{
-                  flex: 1, fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 8,
-                  background: gaError ? '#FFE0E0' : gaConnected ? '#D4EDDA' : '#FFF3CD',
-                  color: gaError ? '#9B1C1C' : gaConnected ? '#155724' : '#856404',
-                }}>
-                  {gaError ? `error: ${gaError}` : gaConnected ? 'connected to GA4 ♡' : 'fetching data...'}
-                </div>
-                <button onClick={googleAuth.signOut} style={{
-                  fontSize: 10, background: 'none', border: '1.5px solid #ccc',
-                  borderRadius: 8, padding: '3px 8px', cursor: 'pointer',
-                  fontFamily: 'inherit', fontWeight: 700, color: '#999',
-                }}>disconnect</button>
-              </div>
-            ) : (
-              <button onClick={googleAuth.signIn} style={{
-                padding: '8px 14px', borderRadius: 10,
-                border: '2px solid ' + palette.ink, cursor: 'pointer',
-                background: palette.stickers[1], fontWeight: 800, fontSize: 12,
-                color: palette.ink, fontFamily: 'inherit', width: '100%',
-              }}>connect to google analytics ♡</button>
-            )
-          )}
-          {googleAuth.error && (
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#9B1C1C' }}>
-              {googleAuth.error}
-            </div>
-          )}
-          <div style={{ fontSize: 10, color: palette.subInk, fontWeight: 600, lineHeight: 1.4 }}>
-            leave blank to use simulated demo data ♡
-          </div>
-        </Section>
-
-        <Section label="setup link">
-          <div style={{ fontSize: 10, color: palette.subInk, fontWeight: 600, lineHeight: 1.4, marginBottom: 2 }}>
-            copy this link to set up Pip on another device ♡
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <input
-              readOnly value={buildSetupUrl(config)}
-              style={{
-                flex: 1, padding: '6px 10px', border: '1.5px solid #ddd',
-                borderRadius: 8, fontSize: 10, fontFamily: 'inherit', fontWeight: 600,
-                outline: 'none', background: '#fafafa', color: palette.ink,
-              }}
-              onFocus={e => e.target.select()}
-            />
-            <button onClick={() => {
-              navigator.clipboard.writeText(buildSetupUrl(config));
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }} style={{
-              padding: '6px 12px', borderRadius: 8,
-              border: '2px solid ' + palette.ink, cursor: 'pointer',
-              background: copied ? palette.stickers[2] : '#fff',
-              fontWeight: 700, fontSize: 11, color: palette.ink,
-              fontFamily: 'inherit', whiteSpace: 'nowrap',
-            }}>{copied ? 'copied!' : 'copy'}</button>
-          </div>
-        </Section>
-
-        <Section label="appearance">
+        <Section label="shape">
           <div style={{ display: 'flex', gap: 6 }}>
             {['blob', 'orb', 'pill'].map(s => (
               <button key={s} onClick={() => setConfig({ ...config, faceShape: s })} style={{
@@ -128,6 +36,9 @@ export default function SettingsPanel({ config, setConfig, palette, onClose, gaE
               }}>{s}</button>
             ))}
           </div>
+        </Section>
+
+        <Section label="palette">
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['peach', 'sakura', 'mint', 'vanilla', 'cloud'].map(p => (
               <button key={p} onClick={() => setConfig({ ...config, palette: p })} style={{
@@ -154,12 +65,12 @@ function Section({ label, children }) {
   );
 }
 
-function Field({ label, value, onChange, type = 'text', placeholder }) {
+function Field({ label, value, onChange }) {
   return (
     <div>
       <div style={{ fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 2 }}>{label}</div>
       <input
-        type={type} value={value || ''} placeholder={placeholder}
+        type="text" value={value || ''}
         onChange={e => onChange(e.target.value)}
         style={{
           width: '100%', padding: '6px 10px', border: '1.5px solid #ddd',
