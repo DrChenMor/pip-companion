@@ -60,7 +60,7 @@ function formatPageForPrompt(page) {
   if (page.imageAlts?.length) {
     out += `Image alt texts: ${page.imageAlts.join(', ')}\n`;
   }
-  out += `\nContent preview:\n${page.content?.slice(0, 2000) || '(could not read content)'}\n`;
+  out += `\nContent preview:\n${page.content?.slice(0, 1200) || '(could not read content)'}\n`;
   return out;
 }
 
@@ -211,34 +211,34 @@ RULES:
     const urlMatch = userMessage.match(/https?:\/\/train2aus\.com[^\s]*/i)
       || userMessage.match(/\/blog\/[^\s]*/i);
 
-    if (urlMatch) {
-      // User gave a specific URL
-      const page = await fetchBlogPage(urlMatch[0]);
-      if (page) pageContent = formatPageForPrompt(page);
-    } else if (wantsPageReview && detail?.pages?.length) {
-      // User is asking about a page - try to match from analytics data
-      // Check if they mention a page name from the data
-      const matchedPage = detail.pages.find(p =>
-        msg.includes(p.path.toLowerCase()) || msg.includes(p.path.replace(/\//g, '').toLowerCase())
-      );
-      if (matchedPage) {
-        const page = await fetchBlogPage(matchedPage.path);
+    try {
+      if (urlMatch) {
+        const page = await fetchBlogPage(urlMatch[0]);
         if (page) pageContent = formatPageForPrompt(page);
-      } else if (msg.includes('top') || msg.includes('best') || msg.includes('latest') || msg.includes('הכי')) {
-        // Fetch the top performing page
-        const page = await fetchBlogPage(detail.pages[0].path);
-        if (page) pageContent = formatPageForPrompt(page);
+      } else if (wantsPageReview && detail?.pages?.length) {
+        const matchedPage = detail.pages.find(p =>
+          msg.includes(p.path.toLowerCase()) || msg.includes(p.path.replace(/\//g, '').toLowerCase())
+        );
+        if (matchedPage) {
+          const page = await fetchBlogPage(matchedPage.path);
+          if (page) pageContent = formatPageForPrompt(page);
+        } else if (msg.includes('top') || msg.includes('best') || msg.includes('latest') || msg.includes('הכי') || msg.includes('פופולרי')) {
+          const page = await fetchBlogPage(detail.pages[0].path);
+          if (page) pageContent = formatPageForPrompt(page);
+        }
       }
-    }
+    } catch (e) { console.warn('Page fetch skipped:', e); }
 
     // Also fetch blog index if user asks about all posts or internal linking
     let blogIndex = '';
-    if (msg.includes('all posts') || msg.includes('internal link') || msg.includes('כל הפוסטים') || msg.includes('קישורים')) {
-      const index = await fetchBlogIndex();
-      if (index?.blogPosts?.length) {
-        blogIndex = '\nALL BLOG POSTS ON THE SITE:\n' + index.blogPosts.map(u => decodeURIComponent(u)).join('\n') + '\n';
+    try {
+      if (msg.includes('all posts') || msg.includes('internal link') || msg.includes('כל הפוסטים') || msg.includes('קישורים')) {
+        const index = await fetchBlogIndex();
+        if (index?.blogPosts?.length) {
+          blogIndex = '\nALL BLOG POSTS ON THE SITE:\n' + index.blogPosts.map(u => decodeURIComponent(u)).join('\n') + '\n';
+        }
       }
-    }
+    } catch (e) { console.warn('Blog index fetch skipped:', e); }
 
     const memoryContext = memory.slice(-10).map(m =>
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
@@ -331,7 +331,11 @@ RULES:
           }),
         }
       );
-      if (!res.ok) throw new Error(`Gemini API: ${res.status}`);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        console.warn('Gemini chat error:', res.status, errBody);
+        throw new Error(`Gemini API: ${res.status}`);
+      }
       const json = await res.json();
       const reply = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'hmm, my brain is fuzzy right now ♡';
 
@@ -339,7 +343,8 @@ RULES:
       addMemory({ type: 'chat', content: `Q: ${userMessage} A: ${reply.slice(0, 120)}` });
 
       return reply;
-    } catch {
+    } catch (err) {
+      console.warn('Gemini chat failed:', err);
       return 'oops, something went wrong... try again? ♡';
     } finally {
       setIsThinking(false);
