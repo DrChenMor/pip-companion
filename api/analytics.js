@@ -23,15 +23,32 @@ async function getAccessToken(credentials) {
   return data.access_token;
 }
 
-async function fetchRealtimeReport(accessToken, propertyId) {
+async function fetchRealtimeCount(accessToken, propertyId) {
+  // Simple request with NO dimensions - gives accurate deduplicated active user count
   const res = await fetch(
     `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runRealtimeReport`,
     {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metrics: [{ name: 'activeUsers' }, { name: 'conversions' }],
+      }),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `GA realtime count: ${res.status}`);
+  }
+  return res.json();
+}
+
+async function fetchRealtimeBreakdown(accessToken, propertyId) {
+  // Breakdown by country + page for top page/country detection
+  const res = await fetch(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runRealtimeReport`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         dimensions: [
           { name: 'country' },
@@ -40,15 +57,13 @@ async function fetchRealtimeReport(accessToken, propertyId) {
         metrics: [
           { name: 'activeUsers' },
           { name: 'screenPageViews' },
-          { name: 'conversions' },
         ],
-        metricAggregations: ['TOTAL'],
       }),
     }
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `GA API: ${res.status}`);
+    throw new Error(err.error?.message || `GA realtime breakdown: ${res.status}`);
   }
   return res.json();
 }
@@ -98,21 +113,23 @@ export default async function handler(req, res) {
     const credentials = JSON.parse(credentialsJson);
     const accessToken = await getAccessToken(credentials);
 
-    const [realtime, daily] = await Promise.all([
-      fetchRealtimeReport(accessToken, propertyId),
+    const [realtimeCount, realtimeBreakdown, daily] = await Promise.all([
+      fetchRealtimeCount(accessToken, propertyId),
+      fetchRealtimeBreakdown(accessToken, propertyId),
       fetchDailyReport(accessToken, propertyId),
     ]);
 
-    const realtimeRows = realtime.rows || [];
-    const activeUsers = realtime.totals?.[0]?.metricValues?.[0]?.value
-      || String(realtimeRows.reduce((sum, r) => sum + parseInt(r.metricValues?.[0]?.value || '0'), 0));
-    const conversions = realtime.totals?.[0]?.metricValues?.[2]?.value
-      || String(realtimeRows.reduce((sum, r) => sum + parseInt(r.metricValues?.[2]?.value || '0'), 0));
+    // Accurate active user count from dimension-free request
+    const countRow = realtimeCount.rows?.[0]?.metricValues || [];
+    const activeUsers = countRow[0]?.value || '0';
+    const conversions = countRow[1]?.value || '0';
 
+    // Breakdown for top page/country
+    const breakdownRows = realtimeBreakdown.rows || [];
     let topPage = '/', topCountry = 'US', topReferrer = 'direct';
     let maxViews = 0;
     const countryMap = {};
-    for (const row of realtimeRows) {
+    for (const row of breakdownRows) {
       const country = row.dimensionValues?.[0]?.value || 'unknown';
       const page = row.dimensionValues?.[1]?.value || '/';
       const views = parseInt(row.metricValues?.[1]?.value || '0');
