@@ -167,7 +167,7 @@ export function useServerAnalytics({ refreshInterval = 30000 } = {}) {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/analytics');
+      const res = await fetch('/api/analytics?t=' + Date.now());
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `API: ${res.status}`);
