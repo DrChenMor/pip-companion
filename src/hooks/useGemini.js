@@ -23,6 +23,47 @@ async function fetchDetailData() {
   } catch { return null; }
 }
 
+async function fetchBlogIndex() {
+  try {
+    const res = await fetch('/api/fetch-page');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+async function fetchBlogPage(pathOrUrl) {
+  try {
+    const param = pathOrUrl.startsWith('http') ? `url=${encodeURIComponent(pathOrUrl)}` : `path=${encodeURIComponent(pathOrUrl)}`;
+    const res = await fetch(`/api/fetch-page?${param}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+function formatPageForPrompt(page) {
+  if (!page) return '';
+  let out = '\nBLOG PAGE CONTENT:\n';
+  out += `Title: ${page.title}\n`;
+  if (page.metaDescription) out += `Meta description: ${page.metaDescription}\n`;
+  out += `Word count: ~${page.wordCount}\n`;
+  out += `Images: ${page.imageCount}\n`;
+  if (page.headings?.length) {
+    out += `Headings: ${page.headings.map(h => `H${h.level}: ${h.text}`).join(', ')}\n`;
+  } else {
+    out += 'Headings: NONE (this is an SEO issue - suggest adding H2 subheadings)\n';
+  }
+  if (page.internalLinks?.length) {
+    out += `Internal links: ${page.internalLinks.join(', ')}\n`;
+  } else {
+    out += 'Internal links: NONE (suggest adding links to other blog posts)\n';
+  }
+  if (page.imageAlts?.length) {
+    out += `Image alt texts: ${page.imageAlts.join(', ')}\n`;
+  }
+  out += `\nContent preview:\n${page.content?.slice(0, 2000) || '(could not read content)'}\n`;
+  return out;
+}
+
 function formatDetailForPrompt(detail) {
   if (!detail) return '(detailed data unavailable right now)';
   let out = '';
@@ -159,6 +200,46 @@ RULES:
     // Fetch fresh detailed data for every chat message
     const detail = await getDetail();
 
+    // Check if user is asking about a specific page or wants to read content
+    let pageContent = '';
+    const msg = userMessage.toLowerCase();
+    const wantsPageReview = msg.includes('check') || msg.includes('review') || msg.includes('read')
+      || msg.includes('look at') || msg.includes('analyze') || msg.includes('תבדוק') || msg.includes('תקרא')
+      || msg.includes('post') || msg.includes('פוסט') || msg.includes('blog') || msg.includes('בלוג');
+
+    // Try to find a URL or path in the message
+    const urlMatch = userMessage.match(/https?:\/\/train2aus\.com[^\s]*/i)
+      || userMessage.match(/\/blog\/[^\s]*/i);
+
+    if (urlMatch) {
+      // User gave a specific URL
+      const page = await fetchBlogPage(urlMatch[0]);
+      if (page) pageContent = formatPageForPrompt(page);
+    } else if (wantsPageReview && detail?.pages?.length) {
+      // User is asking about a page - try to match from analytics data
+      // Check if they mention a page name from the data
+      const matchedPage = detail.pages.find(p =>
+        msg.includes(p.path.toLowerCase()) || msg.includes(p.path.replace(/\//g, '').toLowerCase())
+      );
+      if (matchedPage) {
+        const page = await fetchBlogPage(matchedPage.path);
+        if (page) pageContent = formatPageForPrompt(page);
+      } else if (msg.includes('top') || msg.includes('best') || msg.includes('latest') || msg.includes('הכי')) {
+        // Fetch the top performing page
+        const page = await fetchBlogPage(detail.pages[0].path);
+        if (page) pageContent = formatPageForPrompt(page);
+      }
+    }
+
+    // Also fetch blog index if user asks about all posts or internal linking
+    let blogIndex = '';
+    if (msg.includes('all posts') || msg.includes('internal link') || msg.includes('כל הפוסטים') || msg.includes('קישורים')) {
+      const index = await fetchBlogIndex();
+      if (index?.blogPosts?.length) {
+        blogIndex = '\nALL BLOG POSTS ON THE SITE:\n' + index.blogPosts.map(u => decodeURIComponent(u)).join('\n') + '\n';
+      }
+    }
+
     const memoryContext = memory.slice(-10).map(m =>
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
     ).join('\n');
@@ -211,9 +292,18 @@ When asked about writing or content:
 - Explain meta descriptions in plain language (the preview text people see on Google)
 - Encourage consistency - "even one post a week builds momentum"
 
+Blog Content Reading:
+When you see BLOG PAGE CONTENT below, you have actually read that blog post. Give specific feedback:
+- Does the title clearly describe what the post is about? Would someone searching find it?
+- Are there subheadings (H2, H3) breaking up the text? If not, suggest where to add them
+- Are there internal links to other posts on the blog? If not, suggest which posts to link to
+- Is the content long enough? Short posts (under 500 words) struggle to rank on Google
+- Does the meta description exist? Is it compelling?
+- Do images have alt text? This helps Google Images and accessibility
+
 Actionable Suggestions:
 Always give specific, doable advice based on the real data. Not "improve your SEO" but "your post about Perth beaches gets 200 views but people leave after 30 seconds - try adding more photos and linking to your Fremantle post."
-
+${pageContent}${blogIndex}
 RULES:
 - Never use markdown. No bold, no headers, no bullet points with * or -.
 - Use plain sentences and line breaks to separate ideas.

@@ -3,8 +3,8 @@ import { useState, useRef, useEffect } from 'react';
 const STARTERS = [
   'which post is performing best?',
   'where is my traffic coming from?',
-  'what should I write about next?',
-  'how can I reduce bounce rate?',
+  'check my top post for SEO tips',
+  'תבדוק את הפוסט הכי פופולרי',
 ];
 
 // Detect if text contains Hebrew characters
