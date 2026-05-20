@@ -285,7 +285,7 @@ export default function App() {
         </PillButton>
       </div>}
 
-      {!barMode && <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} />}
+      {!barMode && <ChatPanel gemini={gemini} palette={palette} isOpen={chatOpen} onClose={() => setChatOpen(false)} isMobile={vpWidth < 500} />}
       {settingsOpen && <SettingsPanel config={config} setConfig={setConfig} palette={palette} onClose={() => setSettingsOpen(false)} fullscreen={barMode} />}
     </div>
   );

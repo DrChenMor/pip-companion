@@ -42,6 +42,7 @@ async function fetchRealtimeReport(accessToken, propertyId) {
           { name: 'screenPageViews' },
           { name: 'conversions' },
         ],
+        metricAggregations: ['TOTAL'],
       }),
     }
   );
@@ -103,8 +104,10 @@ export default async function handler(req, res) {
     ]);
 
     const realtimeRows = realtime.rows || [];
-    const activeUsers = realtime.totals?.[0]?.metricValues?.[0]?.value || '0';
-    const conversions = realtime.totals?.[0]?.metricValues?.[2]?.value || '0';
+    const activeUsers = realtime.totals?.[0]?.metricValues?.[0]?.value
+      || String(realtimeRows.reduce((sum, r) => sum + parseInt(r.metricValues?.[0]?.value || '0'), 0));
+    const conversions = realtime.totals?.[0]?.metricValues?.[2]?.value
+      || String(realtimeRows.reduce((sum, r) => sum + parseInt(r.metricValues?.[2]?.value || '0'), 0));
 
     let topPage = '/', topCountry = 'US', topReferrer = 'direct';
     let maxViews = 0;

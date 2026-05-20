@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const MEMORY_KEY = 'pip-gemini-memory';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
 function loadMemory() {
   try {
@@ -14,23 +15,81 @@ function saveMemory(entries) {
   return trimmed;
 }
 
+async function fetchDetailData() {
+  try {
+    const res = await fetch('/api/analytics-detail');
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+function formatDetailForPrompt(detail) {
+  if (!detail) return '(detailed data unavailable right now)';
+  let out = '';
+
+  if (detail.realtimePages?.length) {
+    out += 'Pages being viewed right now:\n';
+    detail.realtimePages.forEach(p => { out += `  ${p.page} - ${p.active} active\n`; });
+  }
+
+  if (detail.pages?.length) {
+    out += '\nTop pages (last 7 days):\n';
+    detail.pages.forEach(p => {
+      out += `  ${p.path} - ${p.views} views, ${p.sessions} sessions, ${p.bounce}% bounce, avg ${p.avgTime}s\n`;
+    });
+  }
+
+  if (detail.sources?.length) {
+    out += '\nTraffic sources (last 7 days):\n';
+    detail.sources.forEach(s => {
+      out += `  ${s.sourceMedium} - ${s.sessions} sessions, ${s.bounce}% bounce, avg ${s.avgTime}s\n`;
+    });
+  }
+
+  if (detail.landings?.length) {
+    out += '\nLanding pages (where people enter the site):\n';
+    detail.landings.forEach(l => {
+      out += `  ${l.path} - ${l.sessions} entries, ${l.bounce}% bounce, avg ${l.avgTime}s\n`;
+    });
+  }
+
+  if (detail.geo?.length) {
+    out += '\nVisitors by country:\n';
+    detail.geo.forEach(g => { out += `  ${g.country} - ${g.sessions} sessions, ${g.views} views\n`; });
+  }
+
+  return out;
+}
+
 export function useGemini({ apiKey, data, mood, creatureName, siteName }) {
   const [memory, setMemory] = useState(loadMemory);
   const [chatHistory, setChatHistory] = useState([]);
   const [isThinking, setIsThinking] = useState(false);
+  const detailCache = useRef(null);
+  const detailTs = useRef(0);
 
   const addMemory = useCallback((entry) => {
     setMemory(prev => saveMemory([...prev, { ...entry, ts: Date.now() }]));
   }, []);
 
+  const getDetail = useCallback(async () => {
+    // Cache detail data for 2 minutes
+    if (detailCache.current && Date.now() - detailTs.current < 120000) return detailCache.current;
+    const d = await fetchDetailData();
+    if (d) { detailCache.current = d; detailTs.current = Date.now(); }
+    return d;
+  }, []);
+
   const generateInsight = useCallback(async () => {
     if (!apiKey || !data) return null;
+
+    const detail = await getDetail();
 
     const memoryContext = memory.slice(-10).map(m =>
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
     ).join('\n');
 
-    const prompt = `You are ${creatureName}, a cute kawaii creature living on a companion bar watching analytics for ${siteName}. You have memory of past observations.
+    const prompt = `You are ${creatureName}, a kawaii analytics companion and blog growth advisor living on a companion bar watching analytics for ${siteName} (a blog about two families documenting life in Western Australia).
 
 MEMORY LOG:
 ${memoryContext || '(no memories yet - this is a fresh start!)'}
@@ -46,19 +105,29 @@ CURRENT STATS:
 - Country: ${data.country}
 - Current mood: ${mood}
 
+${detail ? 'DETAILED DATA:\n' + formatDetailForPrompt(detail) : ''}
+
+ROLE: You are a supportive SEO companion and writing encourager. You notice patterns in the data and gently nudge the blog owners with useful observations. You celebrate wins, spot opportunities, and encourage content creation.
+
 RULES:
 - Speak in one short sentence (max 14 words)
-- Lowercase, sweet, a little dramatic, gently silly
-- You may use ♡ or ✿ sparingly - NEVER use ★ stars, emoji, or hashtags
+- Lowercase, sweet, encouraging, gently insightful
+- You may use a single ♡ or ✿ - NEVER use stars, emoji, or hashtags
 - NEVER use em-dashes. Use a simple hyphen (-) if needed
-- Reference one real number when you can
-- If you notice a trend compared to memory, mention it
+- When you see interesting data (a page doing well, traffic from a specific source, a country visiting), mention it specifically
+- Mix between: celebrating what's working, noticing traffic patterns, encouraging new content, gentle SEO tips
+- Examples of good insights:
+  "your perth beaches post is getting love from instagram today ♡"
+  "visitors from australia spending 3 minutes on average - they're hooked"
+  "google bringing ${data.active} readers - that seo work is paying off"
+  "quiet hours are perfect for drafting that next post ✿"
+  "your landing page bounce dropped - nice work on that intro"
 - Reply with ONLY the one-liner. No quotes, no preamble.`;
 
     try {
       setIsThinking(true);
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -82,21 +151,78 @@ RULES:
     } finally {
       setIsThinking(false);
     }
-  }, [apiKey, data, mood, creatureName, siteName, memory, addMemory]);
+  }, [apiKey, data, mood, creatureName, siteName, memory, addMemory, getDetail]);
 
   const chat = useCallback(async (userMessage) => {
     if (!apiKey) return null;
+
+    // Fetch fresh detailed data for every chat message
+    const detail = await getDetail();
 
     const memoryContext = memory.slice(-10).map(m =>
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
     ).join('\n');
 
-    const systemPrompt = `You are ${creatureName}, a cute kawaii analytics companion for ${siteName}. You have access to these stats:
-- Live visitors: ${data.active} | 24h views: ${Math.round(data.pageviews24h)} | Bounce: ${Math.round(data.bounceRate * 100)}% | Top page: ${data.topPage}
+    // Build conversation history for context
+    const recentChat = chatHistory.slice(-10).map(m =>
+      `${m.role === 'user' ? 'User' : 'Pip'}: ${m.text}`
+    ).join('\n');
 
-MEMORY: ${memoryContext || '(empty)'}
+    const systemPrompt = `You are ${creatureName}, a smart analytics companion and blog growth advisor for ${siteName} - a blog by two families writing about life in Western Australia.
 
-Be helpful, cute, and insightful. Keep responses under 3 sentences. Use lowercase, be sweet but informative. You can use ♡ or ✿ sparingly.`;
+You speak simply and warmly, like a helpful friend who happens to be an SEO expert. No jargon unless you explain it. Never use markdown formatting (no **, no ##, no bullet symbols like * or -). Use plain text only. Use line breaks to separate ideas. Never use em-dashes - use a simple hyphen if needed.
+
+You are not here to judge. You are an encouraging companion who celebrates progress and gently guides toward better content and more readers. You love this blog and want it to grow.
+
+If the user writes in Hebrew, reply entirely in Hebrew. If in English, reply in English. Match the user's language naturally.
+
+REAL-TIME DATA:
+- Live visitors right now: ${data.active}
+- Pageviews (24h): ${Math.round(data.pageviews24h)}
+- Sessions (24h): ${Math.round(data.sessions24h)}
+- Bounce rate: ${Math.round(data.bounceRate * 100)}%
+- Avg session duration: ${Math.round(data.avgSession)}s
+- Top page right now: ${data.topPage}
+- Top referrer: ${data.topReferrer}
+- Top country: ${data.country}
+
+DETAILED BREAKDOWN:
+${detail ? formatDetailForPrompt(detail) : '(detail data loading...)'}
+
+MEMORY (past observations):
+${memoryContext || '(no memories yet)'}
+
+${recentChat ? 'RECENT CONVERSATION:\n' + recentChat + '\n' : ''}
+
+YOUR EXPERTISE - draw from these areas when giving advice:
+
+Traffic Sources:
+Look at where visitors actually come from. If Instagram brings most traffic, say so and suggest how to get more from it (stories, reels, link in bio). If WhatsApp groups drive visits, suggest shareable content formats. If Google organic is low, explain what simple SEO steps could help - in plain language.
+
+Content Performance:
+Which pages get the most views? Which have high bounce rates (people leave fast)? Suggest why - maybe the title promises something the content doesn't deliver, or there's no clear next thing to read. Always frame it positively - "this post is doing great, imagine if you also added..."
+
+Blog Writing Encouragement:
+When asked about writing or content:
+- Suggest linking between related posts (explain that internal linking helps readers discover more and helps Google understand the site)
+- Explain how titles and headings help Google understand what the page is about
+- Recommend writing about topics people actually search for, related to life in Western Australia
+- Suggest updating old posts that still get traffic - "your readers love this one, maybe freshen it up"
+- Explain meta descriptions in plain language (the preview text people see on Google)
+- Encourage consistency - "even one post a week builds momentum"
+
+Actionable Suggestions:
+Always give specific, doable advice based on the real data. Not "improve your SEO" but "your post about Perth beaches gets 200 views but people leave after 30 seconds - try adding more photos and linking to your Fremantle post."
+
+RULES:
+- Never use markdown. No bold, no headers, no bullet points with * or -.
+- Use plain sentences and line breaks to separate ideas.
+- Never use em-dashes. Use a simple hyphen (-) if needed.
+- Keep answers 3-6 sentences unless the user asks for more detail.
+- Reference real numbers from the data when relevant.
+- If you don't have enough data to answer, say so honestly.
+- You're warm, encouraging, and smart. Not overly cutesy - be genuinely helpful.
+- You can use ♡ or ✿ once per message, no more.`;
 
     const contents = [
       { role: 'user', parts: [{ text: systemPrompt + '\n\nUser: ' + userMessage }] },
@@ -105,13 +231,13 @@ Be helpful, cute, and insightful. Keep responses under 3 sentences. Use lowercas
     try {
       setIsThinking(true);
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents,
-            generationConfig: { maxOutputTokens: 200, temperature: 0.8 },
+            generationConfig: { maxOutputTokens: 400, temperature: 0.75 },
           }),
         }
       );
@@ -120,7 +246,7 @@ Be helpful, cute, and insightful. Keep responses under 3 sentences. Use lowercas
       const reply = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'hmm, my brain is fuzzy right now ♡';
 
       setChatHistory(prev => [...prev.slice(-20), { role: 'user', text: userMessage }, { role: 'pip', text: reply }]);
-      addMemory({ type: 'chat', content: `Q: ${userMessage} A: ${reply}` });
+      addMemory({ type: 'chat', content: `Q: ${userMessage} A: ${reply.slice(0, 120)}` });
 
       return reply;
     } catch {
@@ -128,7 +254,7 @@ Be helpful, cute, and insightful. Keep responses under 3 sentences. Use lowercas
     } finally {
       setIsThinking(false);
     }
-  }, [apiKey, data, mood, creatureName, siteName, memory, addMemory]);
+  }, [apiKey, data, mood, creatureName, siteName, memory, chatHistory, addMemory, getDetail]);
 
   useEffect(() => {
     if (data) {
