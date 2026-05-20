@@ -77,7 +77,7 @@ export default async function handler(req, res) {
     const [topPages, trafficSources, landingPages, countries, realtimeByPage] = await Promise.all([
       // Top pages by pageviews (last 7 days for better data)
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
         dimensions: [{ name: 'pagePath' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
 
       // Traffic sources (source/medium includes UTM data)
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
         dimensions: [{ name: 'sessionSourceMedium' }],
         metrics: [
           { name: 'sessions' },
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
 
       // Landing pages with bounce rates
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
         dimensions: [{ name: 'landingPage' }],
         metrics: [
           { name: 'sessions' },
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
 
       // Geographic breakdown
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
         dimensions: [{ name: 'country' }],
         metrics: [
           { name: 'sessions' },

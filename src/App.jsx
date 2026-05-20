@@ -146,9 +146,9 @@ export default function App() {
             cursor: 'pointer', fontSize: 18, color: palette.subInk, opacity: 0.6,
           }}>✿</button>
           <button onClick={() => setChatOpen(o => !o)} style={{
-            position: 'absolute', top: 10, left: 12, background: 'none', border: 'none',
-            cursor: 'pointer', fontSize: 14, color: palette.subInk, opacity: 0.6, fontFamily: 'inherit', fontWeight: 700,
-          }}>♡</button>
+            position: 'absolute', top: 8, left: 12, background: 'none', border: 'none',
+            cursor: 'pointer', fontSize: 22, color: palette.subInk, opacity: 0.7, lineHeight: 1,
+          }}>💬</button>
         </div>
       )}
 
@@ -278,7 +278,7 @@ export default function App() {
         display: 'flex', gap: 8, zIndex: 999,
       }}>
         <PillButton palette={palette} onClick={() => setChatOpen(o => !o)} active={chatOpen}>
-          ♡ chat with pip
+          💬 chat with pip
         </PillButton>
         <PillButton palette={palette} onClick={() => setSettingsOpen(o => !o)} active={settingsOpen}>
           ✿ settings
