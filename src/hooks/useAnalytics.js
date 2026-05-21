@@ -205,6 +205,8 @@ export function moodFromAnalytics(d) {
   const hour = new Date().getHours();
   const isNight = hour < 6 || hour >= 23;
   const a = d.active;
+  const session = d.avgSession || 0;
+  const bounce = d.bounceRate || 0;
 
   const recent = (kind) => d.events.some(e => e.kind === kind && Date.now() - e.t < 30000);
   const recentConv = recent('conversion');
@@ -217,16 +219,20 @@ export function moodFromAnalytics(d) {
   if (isNight && a < 12) return 'drowsy';
   if (a < 3) return 'bored';
 
-  if (d.bounceRate > 0.65 && a > 8) return 'anxious';
+  // Focused mood: long sessions = engaged readers (matters MORE than bounce for blogs)
+  // Personal narrative blog posts are often "read and leave satisfied" = high bounce + long session
+  if (session > 120 && a > 5) return 'focused';
+
+  // Only anxious if BOTH bounce is high AND sessions are short (real problem)
+  if (bounce > 0.7 && session < 30 && a > 8) return 'anxious';
 
   if (a > 130) return 'dizzy';
   if (a > 95) return 'overwhelmed';
   if (a > 55) return 'excited';
 
-  if (a > 35 && d.bounceRate < 0.35 && d.avgSession > 110) return 'fancy';
+  if (a > 30 && session > 90) return 'fancy';
   if (a > 20) return 'happy';
 
-  if (d.avgSession > 130 && a > 8) return 'focused';
   if (a > 8 && a < 16) return 'curious';
   return 'content';
 }
