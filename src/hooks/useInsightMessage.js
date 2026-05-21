@@ -25,12 +25,13 @@ function cannedMessage(data, mood) {
     ],
     bored: [
       `only ${a} visitors... time to write something new? ✿`,
-      `pretty empty. maybe post that thing you keep drafting?`,
+      `pretty empty. maybe share an old post in an aliyah facebook group?`,
       `${a} humans. share a post on whatsapp maybe?`,
-      `slow day - perfect for updating an old post with fresh links ♡`,
-      `quiet here. have you checked which posts need better titles?`,
-      `${a} visitors. a new post could change that by tomorrow.`,
+      `slow day - perfect for updating that visa post with 2026 fees ♡`,
+      `quiet here. which posts in the journey are still missing?`,
+      `${a} visitors. a new comparative post (israel vs australia) could draw a crowd.`,
       `tip: add a link from your newest post to your most popular one ✿`,
+      `quiet hours - good time to add internal links between related posts.`,
     ],
     content: [
       `${a} reading right now ♡ cruisey vibes.`,
@@ -137,15 +138,19 @@ export function useInsightMessage({ data, mood, gemini }) {
   useEffect(() => { moodRef.current = mood; }, [mood]);
   useEffect(() => { geminiRef.current = gemini; }, [gemini]);
 
-  // Immediately refresh message when active count changes (real data update)
+  // Refresh message only when active count changes meaningfully (not every poll)
   useEffect(() => {
-    if (data.active !== lastActive.current) {
+    const diff = Math.abs(data.active - lastActive.current);
+    const isSignificant = diff >= 2 || (data.active === 0 && lastActive.current > 0) || (data.active > 0 && lastActive.current === 0);
+    if (isSignificant) {
       lastActive.current = data.active;
-      // Only swap if we're showing a canned message (don't overwrite fresh AI insights)
-      if (Date.now() - lastGeminiCall.current > 30000) {
+      // Only swap if we're not showing a fresh AI insight (within last 60s)
+      if (Date.now() - lastGeminiCall.current > 60000) {
         lastCannedSwap.current = Date.now();
         setMsg(cannedMessage(data, mood));
       }
+    } else {
+      lastActive.current = data.active;
     }
   }, [data.active]);
 
@@ -174,8 +179,8 @@ export function useInsightMessage({ data, mood, gemini }) {
       const currentMood = moodRef.current;
       const currentGemini = geminiRef.current;
 
-      // Try Gemini if enough time has passed
-      const minGeminiWait = Math.max(60000, backoff.current);
+      // Try Gemini every 90s for fresh AI insights
+      const minGeminiWait = Math.max(90000, backoff.current);
       if (currentGemini && now - lastGeminiCall.current >= minGeminiWait) {
         lastGeminiCall.current = now;
         currentGemini.generateInsight().then(aiMsg => {
@@ -183,15 +188,15 @@ export function useInsightMessage({ data, mood, gemini }) {
             backoff.current = 0;
             setMsg(aiMsg);
           } else {
-            backoff.current = Math.min((backoff.current || 60000) * 2, 300000);
+            backoff.current = Math.min((backoff.current || 90000) * 2, 600000);
             setMsg(cannedMessage(dataRef.current, moodRef.current));
           }
         });
         return;
       }
 
-      // Swap canned message every 10 seconds with fresh data
-      if (now - lastCannedSwap.current >= 10000) {
+      // Swap canned message every 25 seconds with fresh data
+      if (now - lastCannedSwap.current >= 25000) {
         lastCannedSwap.current = now;
         setMsg(cannedMessage(currentData, currentMood));
       }
