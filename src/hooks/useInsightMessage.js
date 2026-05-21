@@ -121,19 +121,41 @@ function cannedMessage(data, mood) {
 
 export function useInsightMessage({ data, mood, gemini }) {
   const [msg, setMsg] = useState(() => cannedMessage(data, mood));
-  const lastMood = useRef(mood);
+
+  // Refs keep latest values so the interval always reads fresh data
+  const dataRef = useRef(data);
+  const moodRef = useRef(mood);
+  const geminiRef = useRef(gemini);
   const lastEventCount = useRef(0);
   const lastGeminiCall = useRef(0);
   const lastCannedSwap = useRef(Date.now());
+  const lastActive = useRef(data.active);
   const backoff = useRef(0);
 
+  // Keep refs in sync with latest props
+  useEffect(() => { dataRef.current = data; }, [data]);
+  useEffect(() => { moodRef.current = mood; }, [mood]);
+  useEffect(() => { geminiRef.current = gemini; }, [gemini]);
+
+  // Immediately refresh message when active count changes (real data update)
   useEffect(() => {
-    if (mood !== lastMood.current) {
-      lastMood.current = mood;
-      setMsg(cannedMessage(data, mood));
+    if (data.active !== lastActive.current) {
+      lastActive.current = data.active;
+      // Only swap if we're showing a canned message (don't overwrite fresh AI insights)
+      if (Date.now() - lastGeminiCall.current > 30000) {
+        lastCannedSwap.current = Date.now();
+        setMsg(cannedMessage(data, mood));
+      }
     }
+  }, [data.active]);
+
+  // Refresh on mood change
+  useEffect(() => {
+    setMsg(cannedMessage(dataRef.current, mood));
+    lastCannedSwap.current = Date.now();
   }, [mood]);
 
+  // React to events (conversions, spikes)
   useEffect(() => {
     const evCount = data.events.length;
     const fresh = data.events.slice(lastEventCount.current);
@@ -144,40 +166,38 @@ export function useInsightMessage({ data, mood, gemini }) {
     else if (spike) setMsg('uwah!! traffic spike incoming - hold my juice box ♡');
   }, [data.events]);
 
+  // Main rotation loop - runs once, reads from refs so always fresh
   useEffect(() => {
-    // Rotate messages every 10 seconds (canned) or try Gemini every 60s
     const id = setInterval(() => {
       const now = Date.now();
+      const currentData = dataRef.current;
+      const currentMood = moodRef.current;
+      const currentGemini = geminiRef.current;
 
       // Try Gemini if enough time has passed
       const minGeminiWait = Math.max(60000, backoff.current);
-      if (gemini && now - lastGeminiCall.current >= minGeminiWait) {
-        generate();
+      if (currentGemini && now - lastGeminiCall.current >= minGeminiWait) {
+        lastGeminiCall.current = now;
+        currentGemini.generateInsight().then(aiMsg => {
+          if (aiMsg) {
+            backoff.current = 0;
+            setMsg(aiMsg);
+          } else {
+            backoff.current = Math.min((backoff.current || 60000) * 2, 300000);
+            setMsg(cannedMessage(dataRef.current, moodRef.current));
+          }
+        });
         return;
       }
 
-      // Swap canned message every 10 seconds
+      // Swap canned message every 10 seconds with fresh data
       if (now - lastCannedSwap.current >= 10000) {
         lastCannedSwap.current = now;
-        setMsg(cannedMessage(data, mood));
+        setMsg(cannedMessage(currentData, currentMood));
       }
     }, 5000);
     return () => clearInterval(id);
-  }, [mood, gemini, data]);
-
-  async function generate() {
-    if (gemini) {
-      lastGeminiCall.current = Date.now();
-      const aiMsg = await gemini.generateInsight();
-      if (aiMsg) {
-        backoff.current = 0;
-        setMsg(aiMsg);
-        return;
-      }
-      backoff.current = Math.min((backoff.current || 60000) * 2, 300000);
-    }
-    setMsg(cannedMessage(data, mood));
-  }
+  }, []); // Empty deps - interval runs forever, reads from refs
 
   return msg;
 }
