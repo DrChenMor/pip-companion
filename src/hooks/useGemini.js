@@ -100,23 +100,64 @@ function formatDetailForPrompt(detail) {
   if (!detail) return '(detailed data unavailable right now)';
   let out = '';
 
+  // Timestamp - so Pip knows when this data was fetched (not hallucinated)
+  if (detail.fetchedAtReadable) {
+    out += `Data fetched at: ${detail.fetchedAtReadable}\n`;
+    out += `Date range covered: last 30 days (unless noted otherwise)\n\n`;
+  }
+
   if (detail.realtimePages?.length) {
-    out += 'Pages being viewed right now:\n';
+    out += 'Pages being viewed RIGHT NOW (live):\n';
     detail.realtimePages.forEach(p => { out += `  ${p.page} - ${p.active} active\n`; });
   }
 
   if (detail.pages?.length) {
-    out += '\nTop pages (last 7 days):\n';
+    out += '\nTop pages (last 30 days):\n';
     detail.pages.forEach(p => {
       out += `  ${p.path} - ${p.views} views, ${p.sessions} sessions, ${p.bounce}% bounce, avg ${p.avgTime}s\n`;
     });
   }
 
+  if (detail.channels?.length) {
+    out += '\nTraffic by CHANNEL (last 30 days) - this groups sources:\n';
+    detail.channels.forEach(c => {
+      out += `  ${c.channel} - ${c.sessions} sessions, ${c.bounce}% bounce, avg ${c.avgTime}s\n`;
+    });
+  }
+
   if (detail.sources?.length) {
-    out += '\nTraffic sources (last 7 days):\n';
-    detail.sources.forEach(s => {
+    out += '\nDetailed traffic sources/medium (last 30 days):\n';
+    detail.sources.slice(0, 10).forEach(s => {
       out += `  ${s.sourceMedium} - ${s.sessions} sessions, ${s.bounce}% bounce, avg ${s.avgTime}s\n`;
     });
+  }
+
+  if (detail.recentSources?.length) {
+    out += '\nLast 7 days sources (compare to 30-day for trends):\n';
+    detail.recentSources.slice(0, 6).forEach(s => {
+      out += `  ${s.sourceMedium} - ${s.sessions} sessions\n`;
+    });
+  }
+
+  if (detail.campaigns?.length) {
+    out += '\nUTM Campaigns detected (last 30 days):\n';
+    detail.campaigns.forEach(c => {
+      out += `  ${c.campaign} - ${c.sessions} sessions, ${c.bounce}% bounce\n`;
+    });
+  } else {
+    out += '\nUTM Campaigns: NONE detected. Suggest adding UTM parameters to social media links so the source of each share can be tracked.\n';
+  }
+
+  if (detail.hourly?.length) {
+    out += '\nHourly traffic pattern (last 7 days, hour 0-23 in property timezone):\n';
+    const totalByHour = detail.hourly.reduce((acc, h) => { acc[h.hour] = h.sessions; return acc; }, {});
+    for (let h = 0; h < 24; h++) {
+      const sessions = totalByHour[h] || 0;
+      out += `  hour ${String(h).padStart(2, '0')}: ${sessions} sessions\n`;
+    }
+    if (detail.peakHour) {
+      out += `  PEAK HOUR: ${detail.peakHour.hour}:00 with ${detail.peakHour.sessions} sessions\n`;
+    }
   }
 
   if (detail.landings?.length) {
@@ -127,7 +168,7 @@ function formatDetailForPrompt(detail) {
   }
 
   if (detail.geo?.length) {
-    out += '\nVisitors by country:\n';
+    out += '\nVisitors by country (last 30 days):\n';
     detail.geo.forEach(g => { out += `  ${g.country} - ${g.sessions} sessions, ${g.views} views\n`; });
   }
 
@@ -346,6 +387,15 @@ DEFAULT TO CELEBRATING WHEN SIGNALS ARE GOOD:
 - New geographic reach = audience growing
 Don't manufacture problems. If the data looks good, say so confidently and suggest what to lean into next.
 
+ABSOLUTE RULE - NEVER HALLUCINATE:
+- ONLY reference numbers, sources, pages, campaigns, hours, and countries that appear in the data above
+- If you don't see a specific UTM campaign name in the data, do NOT make one up
+- If hourly data shows hour 14 is peak, say "2 PM (in your property's timezone)" - never invent a peak time
+- If the user asks about a campaign you can't see in the data, say "I don't see that campaign in your data - did you add UTM parameters to your social links?"
+- Always cite when the data was fetched: the data has a "Data fetched at" timestamp. If it's old (more than 5 minutes), tell the user the data might have shifted since
+- Distinguish RIGHT NOW (realtime) from LAST 30 DAYS (aggregate) when reasoning
+- If a stat you'd reference isn't in the data, say so honestly instead of guessing
+
 YOUR EXPERTISE - draw from these areas when giving advice:
 
 Reading the Data (audience intent):
@@ -358,6 +408,17 @@ Traffic Sources (interpret for this niche):
 - Instagram = visual storytelling, family content - emotional engagement
 - Direct = loyal returning readers, the people deepest in the journey
 When advising: don't just say "get more Instagram traffic" - explain WHY a specific source matters for this blog and suggest concrete moves like "join more aliyah Facebook groups and share weekly" or "your WhatsApp shares suggest the community is passing this blog around - lean into shareable practical guides".
+
+UTM Campaigns and Timing:
+- UTM parameters are tags added to URLs (like ?utm_source=facebook&utm_campaign=visa-post-launch) that let analytics track WHERE a specific share came from
+- If UTM campaigns appear in data, mention which ones drove traffic and what worked
+- If NO UTM campaigns exist in data, suggest adding them: "next time you share a post on Facebook, add ?utm_source=facebook&utm_medium=social&utm_campaign=post-name to the link - then you'll know exactly which shares bring readers"
+- HOURLY DATA: the data shows when traffic peaks during the day. If peak hour is 21:00 (9 PM), tell the user "your audience is most active around 9 PM - that's when to post on social media or send newsletter"
+- Be specific about times - use the actual numbers from the hourly data, never invent times
+
+Trend Detection:
+- Compare 7-day sources to 30-day sources in the data. If WhatsApp is bigger in last 7 days than the 30-day average, that's a trend - call it out
+- If a source disappeared (in 30-day but not 7-day), mention it might be worth re-engaging
 
 Content Performance:
 Which posts get the most views? Which have high bounce rates? For THIS blog:
@@ -446,5 +507,9 @@ RULES:
     return () => clearInterval(interval);
   }, [data, addMemory]);
 
-  return { generateInsight, chat, chatHistory, isThinking, memory, clearMemory: () => { localStorage.removeItem(MEMORY_KEY); setMemory([]); } };
+  return {
+    generateInsight, chat, chatHistory, isThinking, memory,
+    clearMemory: () => { localStorage.removeItem(MEMORY_KEY); setMemory([]); },
+    clearChat: () => setChatHistory([]),
+  };
 }

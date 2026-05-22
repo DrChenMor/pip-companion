@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     const accessToken = await getAccessToken(credentials);
 
     // Fetch all reports in parallel
-    const [topPages, trafficSources, landingPages, countries, realtimeByPage] = await Promise.all([
+    const [topPages, trafficSources, landingPages, countries, realtimeByPage, channels, campaigns, hourlyTraffic, last7Sources] = await Promise.all([
       // Top pages by pageviews (last 7 days for better data)
       runReport(accessToken, propertyId, {
         dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
@@ -134,6 +134,51 @@ export default async function handler(req, res) {
         metrics: [{ name: 'activeUsers' }],
         metricAggregations: ['TOTAL'],
       }),
+
+      // Channel grouping (Organic Search, Social, Direct, Referral, Email, etc.)
+      runReport(accessToken, propertyId, {
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'screenPageViews' },
+          { name: 'bounceRate' },
+          { name: 'averageSessionDuration' },
+        ],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 10,
+      }),
+
+      // Campaigns (UTM campaign names) - only meaningful when UTM tags are used
+      runReport(accessToken, propertyId, {
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'sessionCampaignName' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'screenPageViews' },
+          { name: 'bounceRate' },
+        ],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 10,
+      }),
+
+      // Hourly traffic pattern (last 7 days) - shows when audience is active
+      runReport(accessToken, propertyId, {
+        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'hour' }],
+        metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+        orderBys: [{ dimension: { dimensionName: 'hour' } }],
+        limit: 24,
+      }),
+
+      // Last 7 days sources only (to compare vs 30-day trend)
+      runReport(accessToken, propertyId, {
+        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'sessionSourceMedium' }],
+        metrics: [{ name: 'sessions' }],
+        orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+        limit: 10,
+      }),
     ]);
 
     // Parse top pages
@@ -175,12 +220,54 @@ export default async function handler(req, res) {
       active: parseInt(r.metricValues?.[0]?.value || '0'),
     })).sort((a, b) => b.active - a.active).slice(0, 5);
 
+    // Parse channels (Organic Search, Social, Direct, etc.)
+    const channelBreakdown = (channels.rows || []).map(r => ({
+      channel: r.dimensionValues?.[0]?.value || 'Unknown',
+      sessions: parseInt(r.metricValues?.[0]?.value || '0'),
+      views: parseInt(r.metricValues?.[1]?.value || '0'),
+      bounce: Math.round(parseFloat(r.metricValues?.[2]?.value || '0') * 100),
+      avgTime: Math.round(parseFloat(r.metricValues?.[3]?.value || '0')),
+    }));
+
+    // Parse UTM campaigns (filter out "(not set)" and "(direct)" entries)
+    const campaignList = (campaigns.rows || [])
+      .map(r => ({
+        campaign: r.dimensionValues?.[0]?.value || '',
+        sessions: parseInt(r.metricValues?.[0]?.value || '0'),
+        views: parseInt(r.metricValues?.[1]?.value || '0'),
+        bounce: Math.round(parseFloat(r.metricValues?.[2]?.value || '0') * 100),
+      }))
+      .filter(c => c.campaign && !c.campaign.startsWith('(') && c.sessions > 0);
+
+    // Parse hourly traffic - find peak hours
+    const hourly = (hourlyTraffic.rows || []).map(r => ({
+      hour: parseInt(r.dimensionValues?.[0]?.value || '0'),
+      sessions: parseInt(r.metricValues?.[0]?.value || '0'),
+      users: parseInt(r.metricValues?.[1]?.value || '0'),
+    })).sort((a, b) => a.hour - b.hour);
+    const peakHour = [...hourly].sort((a, b) => b.sessions - a.sessions)[0];
+
+    // Last 7 days sources for trend comparison
+    const recentSources = (last7Sources.rows || []).map(r => ({
+      sourceMedium: r.dimensionValues?.[0]?.value || 'unknown',
+      sessions: parseInt(r.metricValues?.[0]?.value || '0'),
+    }));
+
+    const fetchedAt = new Date();
     return res.status(200).json({
       pages,
-      sources,
+      sources,           // 30-day source/medium (includes UTMs)
+      recentSources,     // 7-day source/medium for trend comparison
       landings,
       geo,
       realtimePages,
+      channels: channelBreakdown,
+      campaigns: campaignList,
+      hourly,
+      peakHour,
+      dateRange: { from: '30daysAgo', to: 'today' },
+      fetchedAt: fetchedAt.toISOString(),
+      fetchedAtReadable: fetchedAt.toUTCString(),
       ts: Date.now(),
     });
   } catch (err) {

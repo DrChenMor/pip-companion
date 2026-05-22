@@ -64,10 +64,23 @@ export default function ChatPanel({ gemini, palette, isOpen, onClose, isMobile }
         background: palette.stickers[0], flexShrink: 0,
       }}>
         <span style={{ fontWeight: 800, fontSize: 14, color: palette.ink }}>chat with pip ♡</span>
-        <button onClick={onClose} style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: 18, color: palette.ink, fontWeight: 700,
-        }}>✕</button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          {messages.length > 0 && (
+            <button
+              onClick={() => { setMessages([]); gemini.clearChat && gemini.clearChat(); }}
+              title="start a new chat"
+              style={{
+                background: 'none', border: '1.5px solid ' + palette.ink,
+                borderRadius: 8, cursor: 'pointer', padding: '3px 9px',
+                fontSize: 11, color: palette.ink, fontWeight: 700, fontFamily: 'inherit',
+              }}
+            >↻ new chat</button>
+          )}
+          <button onClick={onClose} style={{
+            background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 18, color: palette.ink, fontWeight: 700,
+          }}>✕</button>
+        </div>
       </div>
 
       {/* Messages */}
