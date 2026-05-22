@@ -3,6 +3,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 const MEMORY_KEY = 'pip-gemini-memory';
 const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
 
+// Sanitize API key - strip any whitespace/junk that env vars may have picked up.
+// Gemini API keys are only [A-Za-z0-9_-] characters starting with "AIza".
+function cleanApiKey(key) {
+  if (!key) return '';
+  // Match a Gemini API key pattern: AIza followed by valid chars
+  const match = String(key).match(/AIza[A-Za-z0-9_-]+/);
+  return match ? match[0] : String(key).trim();
+}
+
 // Deep context about the blog - shared by all prompts
 const BLOG_CONTEXT = `THE BLOG YOU'RE WATCHING:
 train2aus.com (רכבת לאוסטרליה - "Train to Australia") is a HEBREW blog written by two Israeli families - Meayan and Chen - documenting their immigration journey to Western Australia (Perth area).
@@ -211,7 +220,7 @@ RULES:
     try {
       setIsThinking(true);
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanApiKey(apiKey)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -395,7 +404,7 @@ RULES:
     try {
       setIsThinking(true);
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanApiKey(apiKey)}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
