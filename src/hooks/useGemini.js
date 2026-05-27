@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 const MEMORY_KEY = 'pip-gemini-memory';
-const GEMINI_MODEL = 'gemini-3.1-flash-lite-preview';
+const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 // Sanitize API key - strip any whitespace/junk that env vars may have picked up.
 // Gemini API keys are only [A-Za-z0-9_-] characters starting with "AIza".
@@ -103,7 +103,7 @@ function formatDetailForPrompt(detail) {
   // Timestamp - so Pip knows when this data was fetched (not hallucinated)
   if (detail.fetchedAtReadable) {
     out += `Data fetched at: ${detail.fetchedAtReadable}\n`;
-    out += `Date range covered: last 30 days (unless noted otherwise)\n\n`;
+    out += `Date range covered: ALL TIME since blog started (unless noted otherwise)\n\n`;
   }
 
   if (detail.realtimePages?.length) {
@@ -112,35 +112,35 @@ function formatDetailForPrompt(detail) {
   }
 
   if (detail.pages?.length) {
-    out += '\nTop pages (last 30 days):\n';
+    out += '\nTop pages (all time):\n';
     detail.pages.forEach(p => {
       out += `  ${p.path} - ${p.views} views, ${p.sessions} sessions, ${p.bounce}% bounce, avg ${p.avgTime}s\n`;
     });
   }
 
   if (detail.channels?.length) {
-    out += '\nTraffic by CHANNEL (last 30 days) - this groups sources:\n';
+    out += '\nTraffic by CHANNEL (all time) - this groups sources:\n';
     detail.channels.forEach(c => {
       out += `  ${c.channel} - ${c.sessions} sessions, ${c.bounce}% bounce, avg ${c.avgTime}s\n`;
     });
   }
 
   if (detail.sources?.length) {
-    out += '\nDetailed traffic sources/medium (last 30 days):\n';
+    out += '\nDetailed traffic sources/medium (all time):\n';
     detail.sources.slice(0, 10).forEach(s => {
       out += `  ${s.sourceMedium} - ${s.sessions} sessions, ${s.bounce}% bounce, avg ${s.avgTime}s\n`;
     });
   }
 
   if (detail.recentSources?.length) {
-    out += '\nLast 7 days sources (compare to 30-day for trends):\n';
+    out += '\nLast 7 days sources (compare to all-time for recent trends):\n';
     detail.recentSources.slice(0, 6).forEach(s => {
       out += `  ${s.sourceMedium} - ${s.sessions} sessions\n`;
     });
   }
 
   if (detail.campaigns?.length) {
-    out += '\nUTM Campaigns detected (last 30 days):\n';
+    out += '\nUTM Campaigns detected (all time):\n';
     detail.campaigns.forEach(c => {
       out += `  ${c.campaign} - ${c.sessions} sessions, ${c.bounce}% bounce\n`;
     });
@@ -168,7 +168,7 @@ function formatDetailForPrompt(detail) {
   }
 
   if (detail.geo?.length) {
-    out += '\nVisitors by country (last 30 days):\n';
+    out += '\nVisitors by country (all time):\n';
     detail.geo.forEach(g => { out += `  ${g.country} - ${g.sessions} sessions, ${g.views} views\n`; });
   }
 
@@ -186,6 +186,9 @@ export function useGemini({ apiKey, data, mood, creatureName, siteName }) {
     setMemory(prev => saveMemory([...prev, { ...entry, ts: Date.now() }]));
   }, []);
 
+  const blogIndexCache = useRef(null);
+  const blogIndexTs = useRef(0);
+
   const getDetail = useCallback(async () => {
     // Cache detail data for 2 minutes
     if (detailCache.current && Date.now() - detailTs.current < 120000) return detailCache.current;
@@ -194,10 +197,18 @@ export function useGemini({ apiKey, data, mood, creatureName, siteName }) {
     return d;
   }, []);
 
+  const getBlogIndex = useCallback(async () => {
+    // Cache blog index for 10 minutes (posts don't change often)
+    if (blogIndexCache.current && Date.now() - blogIndexTs.current < 600000) return blogIndexCache.current;
+    const idx = await fetchBlogIndex();
+    if (idx) { blogIndexCache.current = idx; blogIndexTs.current = Date.now(); }
+    return idx;
+  }, []);
+
   const generateInsight = useCallback(async () => {
     if (!apiKey || !data) return null;
 
-    const detail = await getDetail();
+    const [detail, blogIdx] = await Promise.all([getDetail(), getBlogIndex()]);
 
     const memoryContext = memory.slice(-10).map(m =>
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
@@ -222,7 +233,7 @@ CURRENT STATS:
 - Current mood: ${mood}
 
 ${detail ? 'DETAILED DATA:\n' + formatDetailForPrompt(detail) : ''}
-
+${blogIdx?.blogPosts?.length ? 'BLOG POSTS ON THE SITE:\n' + blogIdx.blogPosts.map(u => decodeURIComponent(u)).slice(0, 15).join('\n') + '\n' : ''}
 ROLE: You are a supportive SEO companion and writing encourager. You notice patterns in the data and gently nudge the blog owners with useful observations. You celebrate wins, spot opportunities, and encourage content creation.
 
 CRITICAL - HOW TO READ THE NUMBERS CORRECTLY:
@@ -248,14 +259,19 @@ RULES:
 - NEVER use em-dashes. Use a simple hyphen (-) if needed
 - When you see interesting data (a page doing well, traffic from a specific source, a country visiting), mention it specifically
 - Mix between: celebrating what's working, noticing traffic patterns, encouraging new content, gentle SEO tips
-- Examples of good context-aware insights:
-  "${data.active} israelis reading right now - your visa post is doing work ♡"
-  "readers from israel staying 3+ minutes - they're hungry for your story"
-  "facebook groups sending traffic again - those aliyah communities ✿"
-  "quiet hours - perfect for drafting that schools-in-perth post you mentioned"
-  "your perth housing post is still climbing - update it for 2026?"
-  "whatsapp share spike - someone passed your blog to a friend in tel aviv ♡"
-  "low bounce on the visa post - readers are devouring the details"
+- EVERY insight must reference a REAL number, page, source, or country from the data above
+- NEVER give generic advice or random tips that aren't tied to actual data you can see
+- If the data shows a specific page getting views, mention THAT page by name
+- If the data shows a specific traffic source, mention THAT source
+- If the blog post list is available, you can reference actual post topics by their URL slugs
+- Examples of good DATA-BACKED insights:
+  "${data.active} readers on the visa post right now ♡" (only if you see it in realtime pages)
+  "organic search sent 45 sessions this week - hebrew seo is working ✿" (only if you see the number)
+  "your perth housing post has 200 views all time - update it for 2026?" (only if you see the data)
+- BAD examples (never do these - they're made up):
+  "try sharing in facebook groups" (generic, not data-backed)
+  "maybe write about schools" (random tip with no data basis)
+  "your bounce rate needs work" (vague, possibly wrong for a blog)
 - Reply with ONLY the one-liner. No quotes, no preamble.`;
 
     try {
@@ -283,24 +299,43 @@ RULES:
     } finally {
       setIsThinking(false);
     }
-  }, [apiKey, data, mood, creatureName, siteName, memory, addMemory, getDetail]);
+  }, [apiKey, data, mood, creatureName, siteName, memory, addMemory, getDetail, getBlogIndex]);
 
   const chat = useCallback(async (userMessage) => {
     if (!apiKey) return null;
 
-    // Fetch fresh detailed data for every chat message
-    const detail = await getDetail();
+    // Fetch detail data + blog index in parallel for every chat message
+    const [detail, blogIdx] = await Promise.all([getDetail(), getBlogIndex()]);
+
+    // Always include blog index so Pip knows what posts exist
+    let blogIndex = '';
+    if (blogIdx?.blogPosts?.length) {
+      blogIndex = '\nALL BLOG POSTS ON THE SITE:\n' + blogIdx.blogPosts.map(u => decodeURIComponent(u)).join('\n') + '\n';
+    }
 
     // Check if user is asking about a specific page or wants to read content
     let pageContent = '';
     const msg = userMessage.toLowerCase();
     const wantsPageReview = msg.includes('check') || msg.includes('review') || msg.includes('read')
       || msg.includes('look at') || msg.includes('analyze') || msg.includes('תבדוק') || msg.includes('תקרא')
-      || msg.includes('post') || msg.includes('פוסט') || msg.includes('blog') || msg.includes('בלוג');
+      || msg.includes('post') || msg.includes('פוסט') || msg.includes('blog') || msg.includes('בלוג')
+      || msg.includes('seo') || msg.includes('content') || msg.includes('writing') || msg.includes('כתיבה')
+      || msg.includes('improve') || msg.includes('שיפור') || msg.includes('tips') || msg.includes('טיפים')
+      || msg.includes('page') || msg.includes('עמוד') || msg.includes('article') || msg.includes('מאמר');
 
     // Try to find a URL or path in the message
     const urlMatch = userMessage.match(/https?:\/\/train2aus\.com[^\s]*/i)
       || userMessage.match(/\/blog\/[^\s]*/i);
+
+    // Try to match a blog post from the index by keywords in the URL slug
+    const findPostByKeywords = (keywords) => {
+      if (!blogIdx?.blogPosts?.length) return null;
+      const words = keywords.split(/\s+/).filter(w => w.length > 2);
+      return blogIdx.blogPosts.find(url => {
+        const decoded = decodeURIComponent(url).toLowerCase();
+        return words.some(w => decoded.includes(w));
+      });
+    };
 
     try {
       if (urlMatch) {
@@ -313,23 +348,20 @@ RULES:
         if (matchedPage) {
           const page = await fetchBlogPage(matchedPage.path);
           if (page) pageContent = formatPageForPrompt(page);
-        } else if (msg.includes('top') || msg.includes('best') || msg.includes('latest') || msg.includes('הכי') || msg.includes('פופולרי')) {
+        } else if (msg.includes('top') || msg.includes('best') || msg.includes('latest') || msg.includes('הכי') || msg.includes('פופולרי') || msg.includes('performing')) {
+          // Auto-fetch the top performing page
           const page = await fetchBlogPage(detail.pages[0].path);
           if (page) pageContent = formatPageForPrompt(page);
+        } else {
+          // Try to match by keywords from the user's message
+          const matchedUrl = findPostByKeywords(msg);
+          if (matchedUrl) {
+            const page = await fetchBlogPage(matchedUrl);
+            if (page) pageContent = formatPageForPrompt(page);
+          }
         }
       }
     } catch (e) { console.warn('Page fetch skipped:', e); }
-
-    // Also fetch blog index if user asks about all posts or internal linking
-    let blogIndex = '';
-    try {
-      if (msg.includes('all posts') || msg.includes('internal link') || msg.includes('כל הפוסטים') || msg.includes('קישורים')) {
-        const index = await fetchBlogIndex();
-        if (index?.blogPosts?.length) {
-          blogIndex = '\nALL BLOG POSTS ON THE SITE:\n' + index.blogPosts.map(u => decodeURIComponent(u)).join('\n') + '\n';
-        }
-      }
-    } catch (e) { console.warn('Blog index fetch skipped:', e); }
 
     const memoryContext = memory.slice(-10).map(m =>
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
@@ -393,7 +425,7 @@ ABSOLUTE RULE - NEVER HALLUCINATE:
 - If hourly data shows hour 14 is peak, say "2 PM (in your property's timezone)" - never invent a peak time
 - If the user asks about a campaign you can't see in the data, say "I don't see that campaign in your data - did you add UTM parameters to your social links?"
 - Always cite when the data was fetched: the data has a "Data fetched at" timestamp. If it's old (more than 5 minutes), tell the user the data might have shifted since
-- Distinguish RIGHT NOW (realtime) from LAST 30 DAYS (aggregate) when reasoning
+- Distinguish RIGHT NOW (realtime) from ALL-TIME (aggregate) when reasoning
 - If a stat you'd reference isn't in the data, say so honestly instead of guessing
 
 YOUR EXPERTISE - draw from these areas when giving advice:
@@ -417,8 +449,8 @@ UTM Campaigns and Timing:
 - Be specific about times - use the actual numbers from the hourly data, never invent times
 
 Trend Detection:
-- Compare 7-day sources to 30-day sources in the data. If WhatsApp is bigger in last 7 days than the 30-day average, that's a trend - call it out
-- If a source disappeared (in 30-day but not 7-day), mention it might be worth re-engaging
+- Compare 7-day sources to all-time sources in the data. If WhatsApp is bigger in last 7 days than the all-time average, that's a recent trend - call it out
+- If a source disappeared (in all-time but not 7-day), mention it might be worth re-engaging
 
 Content Performance:
 Which posts get the most views? Which have high bounce rates? For THIS blog:
@@ -493,7 +525,7 @@ RULES:
     } finally {
       setIsThinking(false);
     }
-  }, [apiKey, data, mood, creatureName, siteName, memory, chatHistory, addMemory, getDetail]);
+  }, [apiKey, data, mood, creatureName, siteName, memory, chatHistory, addMemory, getDetail, getBlogIndex]);
 
   // Daily snapshot every 8 hours to track long-term trends (not noise)
   useEffect(() => {

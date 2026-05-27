@@ -75,9 +75,9 @@ export default async function handler(req, res) {
 
     // Fetch all reports in parallel
     const [topPages, trafficSources, landingPages, countries, realtimeByPage, channels, campaigns, hourlyTraffic, last7Sources] = await Promise.all([
-      // Top pages by pageviews (last 7 days for better data)
+      // Top pages by pageviews (all time)
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
         dimensions: [{ name: 'pagePath' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
 
       // Traffic sources (source/medium includes UTM data)
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
         dimensions: [{ name: 'sessionSourceMedium' }],
         metrics: [
           { name: 'sessions' },
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
 
       // Landing pages with bounce rates
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
         dimensions: [{ name: 'landingPage' }],
         metrics: [
           { name: 'sessions' },
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
 
       // Geographic breakdown
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
         dimensions: [{ name: 'country' }],
         metrics: [
           { name: 'sessions' },
@@ -137,7 +137,7 @@ export default async function handler(req, res) {
 
       // Channel grouping (Organic Search, Social, Direct, Referral, Email, etc.)
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [
           { name: 'sessions' },
@@ -151,7 +151,7 @@ export default async function handler(req, res) {
 
       // Campaigns (UTM campaign names) - only meaningful when UTM tags are used
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
         dimensions: [{ name: 'sessionCampaignName' }],
         metrics: [
           { name: 'sessions' },
@@ -171,7 +171,7 @@ export default async function handler(req, res) {
         limit: 24,
       }),
 
-      // Last 7 days sources only (to compare vs 30-day trend)
+      // Last 7 days sources only (to compare vs all-time trend)
       runReport(accessToken, propertyId, {
         dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
         dimensions: [{ name: 'sessionSourceMedium' }],
@@ -256,7 +256,7 @@ export default async function handler(req, res) {
     const fetchedAt = new Date();
     return res.status(200).json({
       pages,
-      sources,           // 30-day source/medium (includes UTMs)
+      sources,           // all-time source/medium (includes UTMs)
       recentSources,     // 7-day source/medium for trend comparison
       landings,
       geo,
@@ -265,7 +265,7 @@ export default async function handler(req, res) {
       campaigns: campaignList,
       hourly,
       peakHour,
-      dateRange: { from: '30daysAgo', to: 'today' },
+      dateRange: { from: '2020-01-01', to: 'today' },
       fetchedAt: fetchedAt.toISOString(),
       fetchedAtReadable: fetchedAt.toUTCString(),
       ts: Date.now(),
