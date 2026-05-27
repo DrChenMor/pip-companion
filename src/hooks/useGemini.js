@@ -379,53 +379,98 @@ RULES:
       blogIndex = '\nALL BLOG POSTS ON THE SITE:\n' + blogIdx.blogPosts.map(u => decodeURIComponent(u)).join('\n') + '\n';
     }
 
-    // Check if user is asking about a specific page or wants to read content
+    // Smart page fetching - determine which blog page to read
     let pageContent = '';
     const msg = userMessage.toLowerCase();
-    const wantsPageReview = msg.includes('check') || msg.includes('review') || msg.includes('read')
-      || msg.includes('look at') || msg.includes('analyze') || msg.includes('תבדוק') || msg.includes('תקרא')
-      || msg.includes('post') || msg.includes('פוסט') || msg.includes('blog') || msg.includes('בלוג')
-      || msg.includes('seo') || msg.includes('content') || msg.includes('writing') || msg.includes('כתיבה')
-      || msg.includes('improve') || msg.includes('שיפור') || msg.includes('tips') || msg.includes('טיפים')
-      || msg.includes('page') || msg.includes('עמוד') || msg.includes('article') || msg.includes('מאמר');
 
-    // Try to find a URL or path in the message
+    // Step 1: Direct URL in message - always fetch it
     const urlMatch = userMessage.match(/https?:\/\/train2aus\.com[^\s]*/i)
       || userMessage.match(/\/blog\/[^\s]*/i);
 
-    // Try to match a blog post from the index by keywords in the URL slug
-    const findPostByKeywords = (keywords) => {
-      if (!blogIdx?.blogPosts?.length) return null;
-      const words = keywords.split(/\s+/).filter(w => w.length > 2);
-      return blogIdx.blogPosts.find(url => {
-        const decoded = decodeURIComponent(url).toLowerCase();
-        return words.some(w => decoded.includes(w));
+    // Step 2: Build a list of all known pages (from analytics + blog index)
+    const allKnownPages = [];
+    if (detail?.pages?.length) {
+      detail.pages.forEach(p => allKnownPages.push({ path: p.path, source: 'analytics', views: p.views }));
+    }
+    if (blogIdx?.blogPosts?.length) {
+      blogIdx.blogPosts.forEach(url => {
+        try {
+          const path = new URL(url).pathname;
+          if (!allKnownPages.find(p => p.path === path)) {
+            allKnownPages.push({ path, source: 'index', url });
+          }
+        } catch { allKnownPages.push({ path: url, source: 'index', url }); }
       });
-    };
+    }
+
+    // Step 3: Determine which page to fetch
+    let pageToFetch = null;
 
     try {
       if (urlMatch) {
-        const page = await fetchBlogPage(urlMatch[0]);
-        if (page) pageContent = formatPageForPrompt(page);
-      } else if (wantsPageReview && detail?.pages?.length) {
-        const matchedPage = detail.pages.find(p =>
-          msg.includes(p.path.toLowerCase()) || msg.includes(p.path.replace(/\//g, '').toLowerCase())
-        );
-        if (matchedPage) {
-          const page = await fetchBlogPage(matchedPage.path);
-          if (page) pageContent = formatPageForPrompt(page);
-        } else if (msg.includes('top') || msg.includes('best') || msg.includes('latest') || msg.includes('הכי') || msg.includes('פופולרי') || msg.includes('performing')) {
-          // Auto-fetch the top performing page
-          const page = await fetchBlogPage(detail.pages[0].path);
-          if (page) pageContent = formatPageForPrompt(page);
-        } else {
-          // Try to match by keywords from the user's message
-          const matchedUrl = findPostByKeywords(msg);
-          if (matchedUrl) {
-            const page = await fetchBlogPage(matchedUrl);
-            if (page) pageContent = formatPageForPrompt(page);
+        pageToFetch = urlMatch[0];
+      } else {
+        // Check if user mentions "top"/"best"/"performing" - fetch the #1 page
+        const wantsTop = /top|best|performing|popular|הכי|פופולרי|מוביל|ראשון/i.test(msg);
+        // Check if user is asking about a specific post topic
+        const wantsPost = /post|פוסט|blog|בלוג|page|עמוד|article|מאמר|check|review|read|תבדוק|תקרא|content|תוכן|seo|improve|שיפור|tips|טיפים|writing|כתיבה|analyze|נתח/i.test(msg);
+
+        if (wantsTop && allKnownPages.length) {
+          // Fetch the top performing page
+          pageToFetch = allKnownPages[0].url || allKnownPages[0].path;
+        } else if (wantsPost && allKnownPages.length) {
+          // Try to match by path segments or decoded URL keywords
+          const matched = allKnownPages.find(p => {
+            const decoded = decodeURIComponent(p.path).toLowerCase();
+            const slugParts = decoded.split(/[\/\-_]/).filter(s => s.length > 2);
+            // Check if any slug word appears in the user's message
+            return slugParts.some(part => msg.includes(part));
+          });
+
+          if (matched) {
+            pageToFetch = matched.url || matched.path;
+          } else {
+            // Use Gemini to pick the right page - ask it which page the user means
+            const pickPrompt = `The user said: "${userMessage}"
+
+Here are all available blog posts:
+${allKnownPages.map(p => decodeURIComponent(p.path)).join('\n')}
+
+Which ONE page path is the user most likely asking about? Reply with ONLY the path, nothing else. If you can't tell, reply with the path of the most popular page: ${allKnownPages[0]?.path || 'none'}`;
+
+            try {
+              const pickRes = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanApiKey(apiKey)}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: pickPrompt }] }],
+                    generationConfig: { maxOutputTokens: 60, temperature: 0.1 },
+                  }),
+                }
+              );
+              if (pickRes.ok) {
+                const pickJson = await pickRes.json();
+                const picked = pickJson.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+                if (picked && picked !== 'none') {
+                  // Find the matching page from our list
+                  const pickedPage = allKnownPages.find(p =>
+                    decodeURIComponent(p.path).includes(picked) || picked.includes(p.path)
+                  );
+                  if (pickedPage) pageToFetch = pickedPage.url || pickedPage.path;
+                  else pageToFetch = picked; // Try the raw path
+                }
+              }
+            } catch (e) { console.warn('Page picker failed:', e); }
           }
         }
+      }
+
+      // Fetch the selected page
+      if (pageToFetch) {
+        const page = await fetchBlogPage(pageToFetch);
+        if (page) pageContent = formatPageForPrompt(page);
       }
     } catch (e) { console.warn('Page fetch skipped:', e); }
 
@@ -548,7 +593,8 @@ When you see BLOG PAGE CONTENT below, you have actually read that blog post. Giv
 
 Actionable Suggestions:
 Always give specific, doable advice tied to this blog's audience. Not "improve your SEO" but "your visa post gets 200 views but only 30s average - readers want the specific document checklist, try adding a 'documents we prepared' section with photos." Or: "you have no post linking from your housing search to your schools post - readers researching both would love that bridge."
-${pageContent}${blogIndex}
+${pageContent ? '\nIMPORTANT: I fetched and read the blog page below. Use this ACTUAL CONTENT to give specific, grounded feedback. Reference the real title, headings, word count, links, and content you see.\n' + pageContent : '\n(No specific page was fetched for this question. If the user asked about a specific post and you see it in the blog index or analytics, tell them you can analyze it if they ask again with the post name or URL.)\n'}
+${blogIndex}
 RULES:
 - Never use markdown. No bold, no headers, no bullet points with * or -.
 - Use plain sentences and line breaks to separate ideas.
