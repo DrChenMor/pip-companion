@@ -47,9 +47,16 @@ function saveMemory(entries) {
   return trimmed;
 }
 
-async function fetchDetailData() {
+async function fetchDetailData(dateFrom, dateTo) {
   try {
-    const res = await fetch('/api/analytics-detail');
+    let url = '/api/analytics-detail';
+    if (dateFrom || dateTo) {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set('from', dateFrom);
+      if (dateTo) params.set('to', dateTo);
+      url += '?' + params.toString();
+    }
+    const res = await fetch(url);
     if (!res.ok) return null;
     return await res.json();
   } catch { return null; }
@@ -103,7 +110,13 @@ function formatDetailForPrompt(detail) {
   // Timestamp - so Pip knows when this data was fetched (not hallucinated)
   if (detail.fetchedAtReadable) {
     out += `Data fetched at: ${detail.fetchedAtReadable}\n`;
-    out += `Date range covered: ALL TIME since blog started (unless noted otherwise)\n\n`;
+    if (detail.dateRange) {
+      const from = detail.dateRange.from === '2020-01-01' ? 'all time (since blog started)' : `from ${detail.dateRange.from}`;
+      const to = detail.dateRange.to === 'today' ? 'to today' : `to ${detail.dateRange.to}`;
+      out += `Date range covered: ${from} ${to}\n\n`;
+    } else {
+      out += `Date range covered: ALL TIME since blog started\n\n`;
+    }
   }
 
   if (detail.realtimePages?.length) {
@@ -304,8 +317,61 @@ RULES:
   const chat = useCallback(async (userMessage) => {
     if (!apiKey) return null;
 
-    // Fetch detail data + blog index in parallel for every chat message
-    const [detail, blogIdx] = await Promise.all([getDetail(), getBlogIndex()]);
+    // Detect if user is asking for a specific date range
+    const msg0 = userMessage.toLowerCase();
+    let dateFrom = null;
+    let dateTo = null;
+
+    // Match patterns like "last 7 days", "last month", "last 3 months", "this year", "2025", "january", etc.
+    const lastNDays = msg0.match(/last\s+(\d+)\s*days?/i) || msg0.match(/(\d+)\s*ימים\s*אחרונים/);
+    const lastNMonths = msg0.match(/last\s+(\d+)\s*months?/i) || msg0.match(/(\d+)\s*חודשים\s*אחרונים/);
+    const lastWeek = /last\s*week|שבוע\s*אחרון/i.test(msg0);
+    const lastMonth = /last\s*month|חודש\s*אחרון/i.test(msg0);
+    const thisYear = /this\s*year|השנה/i.test(msg0);
+    const thisMonth = /this\s*month|החודש/i.test(msg0);
+    const yearMatch = msg0.match(/\b(202[0-6])\b/);
+    const monthNames = { january: '01', february: '02', march: '03', april: '04', may: '05', june: '06', july: '07', august: '08', september: '09', october: '10', november: '11', december: '12', ינואר: '01', פברואר: '02', מרץ: '03', אפריל: '04', מאי: '05', יוני: '06', יולי: '07', אוגוסט: '08', ספטמבר: '09', אוקטובר: '10', נובמבר: '11', דצמבר: '12' };
+    const monthMatch = Object.keys(monthNames).find(m => msg0.includes(m));
+
+    const now = new Date();
+    if (lastNDays) {
+      const d = new Date(now); d.setDate(d.getDate() - parseInt(lastNDays[1]));
+      dateFrom = d.toISOString().split('T')[0];
+    } else if (lastWeek) {
+      const d = new Date(now); d.setDate(d.getDate() - 7);
+      dateFrom = d.toISOString().split('T')[0];
+    } else if (lastMonth) {
+      const d = new Date(now); d.setMonth(d.getMonth() - 1);
+      dateFrom = d.toISOString().split('T')[0];
+    } else if (lastNMonths) {
+      const d = new Date(now); d.setMonth(d.getMonth() - parseInt(lastNMonths[1]));
+      dateFrom = d.toISOString().split('T')[0];
+    } else if (thisMonth) {
+      dateFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    } else if (thisYear) {
+      dateFrom = `${now.getFullYear()}-01-01`;
+    } else if (yearMatch && monthMatch) {
+      dateFrom = `${yearMatch[1]}-${monthNames[monthMatch]}-01`;
+      const m = parseInt(monthNames[monthMatch]);
+      const y = parseInt(yearMatch[1]);
+      const lastDay = new Date(y, m, 0).getDate();
+      dateTo = `${yearMatch[1]}-${monthNames[monthMatch]}-${lastDay}`;
+    } else if (yearMatch) {
+      dateFrom = `${yearMatch[1]}-01-01`;
+      dateTo = `${yearMatch[1]}-12-31`;
+    } else if (monthMatch) {
+      const y = now.getFullYear();
+      const m = parseInt(monthNames[monthMatch]);
+      dateFrom = `${y}-${monthNames[monthMatch]}-01`;
+      const lastDay = new Date(y, m, 0).getDate();
+      dateTo = `${y}-${monthNames[monthMatch]}-${lastDay}`;
+    }
+
+    // Fetch detail data (with optional date filter) + blog index in parallel
+    const [detail, blogIdx] = await Promise.all([
+      (dateFrom || dateTo) ? fetchDetailData(dateFrom, dateTo) : getDetail(),
+      getBlogIndex(),
+    ]);
 
     // Always include blog index so Pip knows what posts exist
     let blogIndex = '';
@@ -411,6 +477,9 @@ CRITICAL - HOW TO READ THE NUMBERS CORRECTLY:
 - Don't give "fix bounce rate" advice unless sessions are ALSO short
 - When asked to analyze: separate live observations from 24h observations explicitly
 
+DATE FILTERING:
+The data you see below was already filtered based on what the user asked. If they said "last month" or "may 2025" or "this year", the numbers reflect that specific period. Tell the user what date range the data covers so they know you understood their request. The date range is shown in the "Date range covered" line in the data.
+
 DEFAULT TO CELEBRATING WHEN SIGNALS ARE GOOD:
 - Live readers growing or steady = good
 - Long sessions = great storytelling
@@ -503,7 +572,7 @@ RULES:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents,
-            generationConfig: { maxOutputTokens: 400, temperature: 0.75 },
+            generationConfig: { maxOutputTokens: 1000, temperature: 0.75 },
           }),
         }
       );

@@ -73,11 +73,16 @@ export default async function handler(req, res) {
     const credentials = JSON.parse(credentialsJson);
     const accessToken = await getAccessToken(credentials);
 
+    // Allow custom date range via query params (e.g. ?from=2025-01-01&to=2025-05-27)
+    const dateFrom = req.query.from || '2020-01-01';
+    const dateTo = req.query.to || 'today';
+    const dateRange = { startDate: dateFrom, endDate: dateTo };
+
     // Fetch all reports in parallel
     const [topPages, trafficSources, landingPages, countries, realtimeByPage, channels, campaigns, hourlyTraffic, last7Sources] = await Promise.all([
-      // Top pages by pageviews (all time)
+      // Top pages by pageviews
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
+        dateRanges: [dateRange],
         dimensions: [{ name: 'pagePath' }],
         metrics: [
           { name: 'screenPageViews' },
@@ -91,7 +96,7 @@ export default async function handler(req, res) {
 
       // Traffic sources (source/medium includes UTM data)
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
+        dateRanges: [dateRange],
         dimensions: [{ name: 'sessionSourceMedium' }],
         metrics: [
           { name: 'sessions' },
@@ -105,7 +110,7 @@ export default async function handler(req, res) {
 
       // Landing pages with bounce rates
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
+        dateRanges: [dateRange],
         dimensions: [{ name: 'landingPage' }],
         metrics: [
           { name: 'sessions' },
@@ -118,7 +123,7 @@ export default async function handler(req, res) {
 
       // Geographic breakdown
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
+        dateRanges: [dateRange],
         dimensions: [{ name: 'country' }],
         metrics: [
           { name: 'sessions' },
@@ -137,7 +142,7 @@ export default async function handler(req, res) {
 
       // Channel grouping (Organic Search, Social, Direct, Referral, Email, etc.)
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
+        dateRanges: [dateRange],
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
         metrics: [
           { name: 'sessions' },
@@ -151,7 +156,7 @@ export default async function handler(req, res) {
 
       // Campaigns (UTM campaign names) - only meaningful when UTM tags are used
       runReport(accessToken, propertyId, {
-        dateRanges: [{ startDate: '2020-01-01', endDate: 'today' }],
+        dateRanges: [dateRange],
         dimensions: [{ name: 'sessionCampaignName' }],
         metrics: [
           { name: 'sessions' },
@@ -265,7 +270,7 @@ export default async function handler(req, res) {
       campaigns: campaignList,
       hourly,
       peakHour,
-      dateRange: { from: '2020-01-01', to: 'today' },
+      dateRange: { from: dateFrom, to: dateTo },
       fetchedAt: fetchedAt.toISOString(),
       fetchedAtReadable: fetchedAt.toUTCString(),
       ts: Date.now(),
