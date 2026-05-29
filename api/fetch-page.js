@@ -136,16 +136,39 @@ export default async function handler(req, res) {
     const html = await response.text();
     const extracted = extractText(html);
 
-    // If fetching homepage, also extract all blog post URLs
+    // If fetching homepage, also extract all blog post URLs WITH their titles
+    // (the anchor text is usually the Hebrew post title - needed for fuzzy matching)
     if (parsed.pathname === '/' || parsed.pathname === '') {
-      const postUrls = [];
-      const urlRegex = /href=["'](https?:\/\/train2aus\.com\/blog\/[^"']+|\/blog\/[^"']+)/gi;
+      const posts = [];
+      const seen = new Set();
+      // Capture the anchor's href AND its inner text in one pass
+      const anchorRegex = /<a[^>]+href=["'](https?:\/\/train2aus\.com\/blog\/[^"'#]+|\/blog\/[^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
       let m;
-      while ((m = urlRegex.exec(html)) !== null) {
+      while ((m = anchorRegex.exec(html)) !== null) {
         const postUrl = m[1].startsWith('/') ? `https://${ALLOWED_DOMAIN}${m[1]}` : m[1];
-        if (!postUrls.includes(postUrl)) postUrls.push(postUrl);
+        let title = (m[2] || '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        // Fall back to a readable slug if the link had no text (e.g. image link)
+        if (!title) {
+          try {
+            const slug = new URL(postUrl).pathname.split('/').filter(Boolean).pop() || '';
+            title = decodeURIComponent(slug).replace(/[-_]/g, ' ').trim();
+          } catch { title = ''; }
+        }
+        if (!seen.has(postUrl)) {
+          seen.add(postUrl);
+          posts.push({ url: postUrl, title });
+        } else if (title) {
+          // Prefer a version that has a title if we saw the URL before without one
+          const existing = posts.find(p => p.url === postUrl);
+          if (existing && !existing.title) existing.title = title;
+        }
       }
-      extracted.blogPosts = postUrls;
+      extracted.posts = posts;                       // new: [{ url, title }]
+      extracted.blogPosts = posts.map(p => p.url);   // backward compatible
     }
 
     return res.status(200).json(extracted);

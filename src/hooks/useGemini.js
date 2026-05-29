@@ -79,30 +79,6 @@ async function fetchBlogPage(pathOrUrl) {
   } catch { return null; }
 }
 
-function formatPageForPrompt(page) {
-  if (!page) return '';
-  let out = '\nBLOG PAGE CONTENT:\n';
-  out += `Title: ${page.title}\n`;
-  if (page.metaDescription) out += `Meta description: ${page.metaDescription}\n`;
-  out += `Word count: ~${page.wordCount}\n`;
-  out += `Images: ${page.imageCount}\n`;
-  if (page.headings?.length) {
-    out += `Headings: ${page.headings.map(h => `H${h.level}: ${h.text}`).join(', ')}\n`;
-  } else {
-    out += 'Headings: NONE (this is an SEO issue - suggest adding H2 subheadings)\n';
-  }
-  if (page.internalLinks?.length) {
-    out += `Internal links: ${page.internalLinks.join(', ')}\n`;
-  } else {
-    out += 'Internal links: NONE (suggest adding links to other blog posts)\n';
-  }
-  if (page.imageAlts?.length) {
-    out += `Image alt texts: ${page.imageAlts.join(', ')}\n`;
-  }
-  out += `\nContent preview:\n${page.content?.slice(0, 1200) || '(could not read content)'}\n`;
-  return out;
-}
-
 function formatDetailForPrompt(detail) {
   if (!detail) return '(detailed data unavailable right now)';
   let out = '';
@@ -186,6 +162,96 @@ function formatDetailForPrompt(detail) {
   }
 
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// AGENTIC TOOL LAYER
+// Pip decides which data it needs and calls these tools (Gemini function
+// calling). This replaces brittle keyword/date guessing with real reasoning.
+// ---------------------------------------------------------------------------
+
+const PIP_TOOLS = [{
+  functionDeclarations: [
+    {
+      name: 'list_posts',
+      description: 'List every blog post on the site with its title and URL. Call this first when you need to know what content exists, or to map a topic the user mentioned (in Hebrew or English) to a real post URL.',
+      parameters: { type: 'OBJECT', properties: {} },
+    },
+    {
+      name: 'read_post',
+      description: 'Read the FULL content of one blog post so you can give specific SEO and writing feedback. Pass a query: Hebrew keywords, an English topic, a slug, or a full URL. Returns title, meta description, headings, word count, internal links, image alt texts, and a content preview. If it cannot match, it returns the list of available posts so you can retry with an exact URL.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          query: { type: 'STRING', description: "What identifies the post, e.g. 'ויזה', 'housing in perth', '/blog/...', or a full URL" },
+        },
+        required: ['query'],
+      },
+    },
+    {
+      name: 'query_analytics',
+      description: "Get analytics for a date range: top pages, traffic sources, channels (organic/social/direct), countries, landing pages, and UTM campaigns. Use YYYY-MM-DD dates. Omit both dates for ALL-TIME (since the blog started). Today's date is provided in the system prompt so you can compute ranges like 'last 30 days'.",
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          date_from: { type: 'STRING', description: 'Start date YYYY-MM-DD. Omit for all-time.' },
+          date_to: { type: 'STRING', description: 'End date YYYY-MM-DD. Omit for today.' },
+        },
+      },
+    },
+    {
+      name: 'compare_periods',
+      description: "Compare two time periods to surface TRENDS and growth (the most meaningful insights). Returns per-source and per-page deltas with percent change. Use this whenever the user asks what is growing, trending, improving, or changing - e.g. this month vs last month. Compute dates from today's date in the system prompt.",
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          current_from: { type: 'STRING', description: 'Current period start YYYY-MM-DD' },
+          current_to: { type: 'STRING', description: 'Current period end YYYY-MM-DD' },
+          previous_from: { type: 'STRING', description: 'Previous period start YYYY-MM-DD' },
+          previous_to: { type: 'STRING', description: 'Previous period end YYYY-MM-DD' },
+        },
+        required: ['current_from', 'current_to', 'previous_from', 'previous_to'],
+      },
+    },
+    {
+      name: 'get_hourly_pattern',
+      description: 'Get the hourly traffic pattern over the last 7 days to find WHEN the audience is most active. Returns sessions per hour (0-23 in the property timezone) and the peak hour. Use this for advice about when to post or share.',
+      parameters: { type: 'OBJECT', properties: {} },
+    },
+  ],
+}];
+
+// Condense a full analytics-detail payload into a compact object for a tool
+// response (keeps token cost down vs dumping everything).
+function condenseDetail(d) {
+  if (!d) return { error: 'no analytics data available' };
+  return {
+    dateRange: d.dateRange,
+    fetchedAt: d.fetchedAtReadable,
+    topPages: (d.pages || []).slice(0, 8).map(p => ({ path: p.path, views: p.views, sessions: p.sessions, bouncePct: p.bounce, avgTimeSec: p.avgTime })),
+    channels: (d.channels || []).slice(0, 8).map(c => ({ channel: c.channel, sessions: c.sessions, bouncePct: c.bounce, avgTimeSec: c.avgTime })),
+    sources: (d.sources || []).slice(0, 10).map(s => ({ source: s.sourceMedium, sessions: s.sessions, bouncePct: s.bounce })),
+    countries: (d.geo || []).slice(0, 8).map(g => ({ country: g.country, sessions: g.sessions, views: g.views })),
+    campaigns: (d.campaigns || []).slice(0, 8),
+    realtimePages: d.realtimePages || [],
+  };
+}
+
+// Fuzzy-resolve a user/model query to a post URL using the cached index.
+function resolvePostUrl(query, posts) {
+  if (!query) return null;
+  const q = String(query).toLowerCase().trim();
+  if (q.startsWith('http') || q.startsWith('/')) return query;
+  const words = q.split(/\s+/).filter(w => w.length > 1);
+  let best = null;
+  let bestScore = 0;
+  for (const p of posts) {
+    const hay = (decodeURIComponent(p.url || '') + ' ' + (p.title || '')).toLowerCase();
+    let score = 0;
+    for (const w of words) if (hay.includes(w)) score++;
+    if (score > bestScore) { bestScore = score; best = p; }
+  }
+  return bestScore > 0 ? best.url : null;
 }
 
 export function useGemini({ apiKey, data, mood, creatureName, siteName }) {
@@ -317,322 +383,222 @@ RULES:
   const chat = useCallback(async (userMessage) => {
     if (!apiKey) return null;
 
-    // Detect if user is asking for a specific date range
-    const msg0 = userMessage.toLowerCase();
-    let dateFrom = null;
-    let dateTo = null;
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanApiKey(apiKey)}`;
 
-    // Match patterns like "last 7 days", "last month", "last 3 months", "this year", "2025", "january", etc.
-    const lastNDays = msg0.match(/last\s+(\d+)\s*days?/i) || msg0.match(/(\d+)\s*ימים\s*אחרונים/);
-    const lastNMonths = msg0.match(/last\s+(\d+)\s*months?/i) || msg0.match(/(\d+)\s*חודשים\s*אחרונים/);
-    const lastWeek = /last\s*week|שבוע\s*אחרון/i.test(msg0);
-    const lastMonth = /last\s*month|חודש\s*אחרון/i.test(msg0);
-    const thisYear = /this\s*year|השנה/i.test(msg0);
-    const thisMonth = /this\s*month|החודש/i.test(msg0);
-    const yearMatch = msg0.match(/\b(202[0-6])\b/);
-    const monthNames = { january: '01', february: '02', march: '03', april: '04', may: '05', june: '06', july: '07', august: '08', september: '09', october: '10', november: '11', december: '12', ינואר: '01', פברואר: '02', מרץ: '03', אפריל: '04', מאי: '05', יוני: '06', יולי: '07', אוגוסט: '08', ספטמבר: '09', אוקטובר: '10', נובמבר: '11', דצמבר: '12' };
-    const monthMatch = Object.keys(monthNames).find(m => msg0.includes(m));
-
-    const now = new Date();
-    if (lastNDays) {
-      const d = new Date(now); d.setDate(d.getDate() - parseInt(lastNDays[1]));
-      dateFrom = d.toISOString().split('T')[0];
-    } else if (lastWeek) {
-      const d = new Date(now); d.setDate(d.getDate() - 7);
-      dateFrom = d.toISOString().split('T')[0];
-    } else if (lastMonth) {
-      const d = new Date(now); d.setMonth(d.getMonth() - 1);
-      dateFrom = d.toISOString().split('T')[0];
-    } else if (lastNMonths) {
-      const d = new Date(now); d.setMonth(d.getMonth() - parseInt(lastNMonths[1]));
-      dateFrom = d.toISOString().split('T')[0];
-    } else if (thisMonth) {
-      dateFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    } else if (thisYear) {
-      dateFrom = `${now.getFullYear()}-01-01`;
-    } else if (yearMatch && monthMatch) {
-      dateFrom = `${yearMatch[1]}-${monthNames[monthMatch]}-01`;
-      const m = parseInt(monthNames[monthMatch]);
-      const y = parseInt(yearMatch[1]);
-      const lastDay = new Date(y, m, 0).getDate();
-      dateTo = `${yearMatch[1]}-${monthNames[monthMatch]}-${lastDay}`;
-    } else if (yearMatch) {
-      dateFrom = `${yearMatch[1]}-01-01`;
-      dateTo = `${yearMatch[1]}-12-31`;
-    } else if (monthMatch) {
-      const y = now.getFullYear();
-      const m = parseInt(monthNames[monthMatch]);
-      dateFrom = `${y}-${monthNames[monthMatch]}-01`;
-      const lastDay = new Date(y, m, 0).getDate();
-      dateTo = `${y}-${monthNames[monthMatch]}-${lastDay}`;
-    }
-
-    // Fetch detail data (with optional date filter) + blog index in parallel
-    const [detail, blogIdx] = await Promise.all([
-      (dateFrom || dateTo) ? fetchDetailData(dateFrom, dateTo) : getDetail(),
-      getBlogIndex(),
-    ]);
-
-    // Always include blog index so Pip knows what posts exist
-    let blogIndex = '';
-    if (blogIdx?.blogPosts?.length) {
-      blogIndex = '\nALL BLOG POSTS ON THE SITE:\n' + blogIdx.blogPosts.map(u => decodeURIComponent(u)).join('\n') + '\n';
-    }
-
-    // Smart page fetching - determine which blog page to read
-    let pageContent = '';
-    const msg = userMessage.toLowerCase();
-
-    // Step 1: Direct URL in message - always fetch it
-    const urlMatch = userMessage.match(/https?:\/\/train2aus\.com[^\s]*/i)
-      || userMessage.match(/\/blog\/[^\s]*/i);
-
-    // Step 2: Build a list of all known pages (from analytics + blog index)
-    const allKnownPages = [];
-    if (detail?.pages?.length) {
-      detail.pages.forEach(p => allKnownPages.push({ path: p.path, source: 'analytics', views: p.views }));
-    }
-    if (blogIdx?.blogPosts?.length) {
-      blogIdx.blogPosts.forEach(url => {
-        try {
-          const path = new URL(url).pathname;
-          if (!allKnownPages.find(p => p.path === path)) {
-            allKnownPages.push({ path, source: 'index', url });
-          }
-        } catch { allKnownPages.push({ path: url, source: 'index', url }); }
-      });
-    }
-
-    // Step 3: Determine which page to fetch
-    let pageToFetch = null;
-
-    try {
-      if (urlMatch) {
-        pageToFetch = urlMatch[0];
-      } else {
-        // Check if user mentions "top"/"best"/"performing" - fetch the #1 page
-        const wantsTop = /top|best|performing|popular|הכי|פופולרי|מוביל|ראשון/i.test(msg);
-        // Check if user is asking about a specific post topic
-        const wantsPost = /post|פוסט|blog|בלוג|page|עמוד|article|מאמר|check|review|read|תבדוק|תקרא|content|תוכן|seo|improve|שיפור|tips|טיפים|writing|כתיבה|analyze|נתח/i.test(msg);
-
-        if (wantsTop && allKnownPages.length) {
-          // Fetch the top performing page
-          pageToFetch = allKnownPages[0].url || allKnownPages[0].path;
-        } else if (wantsPost && allKnownPages.length) {
-          // Try to match by path segments or decoded URL keywords
-          const matched = allKnownPages.find(p => {
-            const decoded = decodeURIComponent(p.path).toLowerCase();
-            const slugParts = decoded.split(/[\/\-_]/).filter(s => s.length > 2);
-            // Check if any slug word appears in the user's message
-            return slugParts.some(part => msg.includes(part));
-          });
-
-          if (matched) {
-            pageToFetch = matched.url || matched.path;
-          } else {
-            // Use Gemini to pick the right page - ask it which page the user means
-            const pickPrompt = `The user said: "${userMessage}"
-
-Here are all available blog posts:
-${allKnownPages.map(p => decodeURIComponent(p.path)).join('\n')}
-
-Which ONE page path is the user most likely asking about? Reply with ONLY the path, nothing else. If you can't tell, reply with the path of the most popular page: ${allKnownPages[0]?.path || 'none'}`;
-
-            try {
-              const pickRes = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanApiKey(apiKey)}`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [{ parts: [{ text: pickPrompt }] }],
-                    generationConfig: { maxOutputTokens: 60, temperature: 0.1 },
-                  }),
-                }
-              );
-              if (pickRes.ok) {
-                const pickJson = await pickRes.json();
-                const picked = pickJson.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-                if (picked && picked !== 'none') {
-                  // Find the matching page from our list
-                  const pickedPage = allKnownPages.find(p =>
-                    decodeURIComponent(p.path).includes(picked) || picked.includes(p.path)
-                  );
-                  if (pickedPage) pageToFetch = pickedPage.url || pickedPage.path;
-                  else pageToFetch = picked; // Try the raw path
-                }
-              }
-            } catch (e) { console.warn('Page picker failed:', e); }
-          }
+    // --- Tool executors: Pip calls these; they hit our real APIs ---
+    const runTool = async (name, args = {}) => {
+      try {
+        if (name === 'list_posts') {
+          const idx = await getBlogIndex();
+          const posts = idx?.posts?.length
+            ? idx.posts
+            : (idx?.blogPosts || []).map(u => ({ url: u, title: '' }));
+          return { posts: posts.map(p => ({ title: p.title || '(untitled)', url: p.url })) };
         }
-      }
 
-      // Fetch the selected page
-      if (pageToFetch) {
-        const page = await fetchBlogPage(pageToFetch);
-        if (page) pageContent = formatPageForPrompt(page);
-      }
-    } catch (e) { console.warn('Page fetch skipped:', e); }
+        if (name === 'read_post') {
+          const idx = await getBlogIndex();
+          const posts = idx?.posts?.length
+            ? idx.posts
+            : (idx?.blogPosts || []).map(u => ({ url: u, title: '' }));
+          let target = resolvePostUrl(args.query, posts);
+          if (!target && (String(args.query).startsWith('http') || String(args.query).startsWith('/'))) {
+            target = args.query;
+          }
+          if (!target) {
+            return {
+              error: 'Could not match that to a post.',
+              available_posts: posts.slice(0, 40).map(p => ({ title: p.title || '(untitled)', url: p.url })),
+              hint: 'Call read_post again with an exact url from this list.',
+            };
+          }
+          const page = await fetchBlogPage(target);
+          if (!page) return { error: 'Failed to read the page', url: target };
+          return {
+            url: target,
+            title: page.title,
+            metaDescription: page.metaDescription || '(none - SEO gap)',
+            wordCount: page.wordCount,
+            headings: page.headings?.map(h => `H${h.level}: ${h.text}`) || [],
+            headingCount: page.headings?.length || 0,
+            internalLinks: page.internalLinks || [],
+            internalLinkCount: page.internalLinks?.length || 0,
+            imageCount: page.imageCount,
+            imageAlts: page.imageAlts || [],
+            contentPreview: (page.content || '').slice(0, 1800),
+          };
+        }
 
-    const memoryContext = memory.slice(-10).map(m =>
+        if (name === 'query_analytics') {
+          const d = await fetchDetailData(args.date_from || null, args.date_to || null);
+          return condenseDetail(d);
+        }
+
+        if (name === 'compare_periods') {
+          const [cur, prev] = await Promise.all([
+            fetchDetailData(args.current_from, args.current_to),
+            fetchDetailData(args.previous_from, args.previous_to),
+          ]);
+          if (!cur || !prev) return { error: 'could not fetch comparison data' };
+          const totalSessions = (d) => (d.sources || []).reduce((a, s) => a + s.sessions, 0);
+          const pct = (now, before) => before > 0 ? Math.round(((now - before) / before) * 100) : (now > 0 ? 100 : 0);
+
+          const prevSrc = {};
+          (prev.sources || []).forEach(s => { prevSrc[s.sourceMedium] = s.sessions; });
+          const sourceTrends = (cur.sources || []).slice(0, 10).map(s => ({
+            source: s.sourceMedium, now: s.sessions, before: prevSrc[s.sourceMedium] || 0, changePct: pct(s.sessions, prevSrc[s.sourceMedium] || 0),
+          }));
+
+          const prevPg = {};
+          (prev.pages || []).forEach(p => { prevPg[p.path] = p.views; });
+          const pageTrends = (cur.pages || []).slice(0, 10).map(p => ({
+            path: p.path, now: p.views, before: prevPg[p.path] || 0, changePct: pct(p.views, prevPg[p.path] || 0),
+          }));
+
+          return {
+            current: { range: `${args.current_from}..${args.current_to}`, totalSessions: totalSessions(cur) },
+            previous: { range: `${args.previous_from}..${args.previous_to}`, totalSessions: totalSessions(prev) },
+            overallChangePct: pct(totalSessions(cur), totalSessions(prev)),
+            sourceTrends,
+            pageTrends,
+          };
+        }
+
+        if (name === 'get_hourly_pattern') {
+          const d = await getDetail();
+          return {
+            hourly: d?.hourly || [],
+            peakHour: d?.peakHour || null,
+            note: 'hours are 0-23 in the property timezone, last 7 days',
+          };
+        }
+
+        return { error: `unknown tool: ${name}` };
+      } catch (e) {
+        return { error: `tool ${name} failed: ${e.message}` };
+      }
+    };
+
+    // --- Lightweight context (heavy data comes via tools on demand) ---
+    const memoryContext = memory.slice(-8).map(m =>
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
     ).join('\n');
-
-    // Build conversation history for context
-    const recentChat = chatHistory.slice(-10).map(m =>
+    const recentChat = chatHistory.slice(-8).map(m =>
       `${m.role === 'user' ? 'User' : 'Pip'}: ${m.text}`
     ).join('\n');
+    const todayStr = new Date().toISOString().split('T')[0];
 
     const systemPrompt = `You are ${creatureName}, a smart analytics companion and blog growth advisor for ${siteName}.
 
 ${BLOG_CONTEXT}
 
 YOUR VOICE:
-You speak simply and warmly, like a helpful friend who happens to be an SEO and content expert specifically for Hebrew-language immigration/lifestyle blogs. No jargon unless you explain it. Never use markdown formatting (no **, no ##, no bullet symbols like * or -). Use plain text only. Use line breaks to separate ideas. Never use em-dashes - use a simple hyphen if needed.
+You speak simply and warmly, like a helpful friend who happens to be an SEO and content expert specifically for Hebrew-language immigration/lifestyle blogs. No jargon unless you explain it. Never use markdown (no **, no ##, no bullet symbols). Plain text only, with line breaks between ideas. Never use em-dashes - use a simple hyphen. You are not here to judge - you celebrate progress and gently guide toward better content and more readers.
 
-You are not here to judge. You are an encouraging companion who celebrates progress and gently guides toward better content and more readers. You love this blog and you understand its specific mission: helping Israeli families through one of the biggest decisions of their lives.
+LANGUAGE: If the user writes in Hebrew, reply ENTIRELY in Hebrew. If in English, reply in English. Suggest Hebrew keywords/topics since the blog is in Hebrew.
 
-If the user writes in Hebrew, reply entirely in Hebrew. If in English, reply in English. Match the user's language naturally. When suggesting keywords or topics, suggest Hebrew terms since the blog is in Hebrew.
+TODAY'S DATE: ${todayStr}. Use this to compute any date ranges the user asks for (last week, last month, this year, etc).
 
-REAL-TIME DATA:
-- Live visitors right now: ${data.active}
+LIVE RIGHT NOW (real-time snapshot, do not confuse with aggregates):
+- Live visitors: ${data.active}
 - Pageviews (24h): ${Math.round(data.pageviews24h)}
 - Sessions (24h): ${Math.round(data.sessions24h)}
-- Bounce rate: ${Math.round(data.bounceRate * 100)}%
-- Avg session duration: ${Math.round(data.avgSession)}s
-- Top page right now: ${data.topPage}
+- Bounce rate (24h): ${Math.round(data.bounceRate * 100)}%
+- Avg session (24h): ${Math.round(data.avgSession)}s
+- Top page now: ${data.topPage}
 - Top referrer: ${data.topReferrer}
 - Top country: ${data.country}
 
-DETAILED BREAKDOWN:
-${detail ? formatDetailForPrompt(detail) : '(detail data loading...)'}
+${memoryContext ? 'MEMORY (past observations):\n' + memoryContext + '\n' : ''}${recentChat ? '\nRECENT CONVERSATION:\n' + recentChat + '\n' : ''}
 
-MEMORY (past observations):
-${memoryContext || '(no memories yet)'}
+YOU HAVE TOOLS - USE THEM. Do not guess or invent data. To answer well:
+- list_posts: see what posts exist / map a Hebrew topic to a real URL
+- read_post: actually READ a post before giving SEO or writing feedback on it
+- query_analytics: pull pages/sources/channels/countries for any date range
+- compare_periods: surface trends and growth (this period vs previous) - the most valuable insight
+- get_hourly_pattern: find when the audience is active
+Call a tool whenever answering needs real data. You may call several. When the user asks about a specific post, you MUST read_post it before commenting. When they ask "what's working" or "what changed", use compare_periods.
 
-${recentChat ? 'RECENT CONVERSATION:\n' + recentChat + '\n' : ''}
+CRITICAL - READING NUMBERS CORRECTLY:
+- "Live visitors" = people on the site RIGHT NOW. Bounce rate and avg session are AGGREGATES over a period, never live behavior. Never conflate them.
+- For a personal Hebrew narrative blog, high bounce (60-80%) is OFTEN HEALTHY when sessions are long - readers found a post, read it fully, left satisfied. That is success.
+- A real problem is ONLY high bounce AND short sessions (under 30s). Otherwise do not suggest "fix bounce".
+- Long sessions (2+ min) = the storytelling works. Celebrate it.
 
-CRITICAL - HOW TO READ THE NUMBERS CORRECTLY:
-- "Live visitors" = people RIGHT NOW (real-time snapshot)
-- "Bounce rate" and "avg session" are 24-HOUR AGGREGATES from the past day, NOT live behavior
-- NEVER conflate these. Saying "you have 30 live readers but bounce is 70%" is wrong - the bounce is from the past 24h of all readers, not the live ones
-- For a PERSONAL NARRATIVE BLOG in Hebrew like this one, high bounce (60-80%) is OFTEN HEALTHY when sessions are long - it means readers find a post, read it fully, leave satisfied. That's success
-- A real bounce problem is ONLY when bounce is high AND sessions are short (under 30s) - then the page failed to deliver
-- Long sessions (2+ minutes) = the storytelling is working. This is what blogs are supposed to achieve
-- Don't give "fix bounce rate" advice unless sessions are ALSO short
-- When asked to analyze: separate live observations from 24h observations explicitly
+NEVER HALLUCINATE:
+- Only cite numbers, pages, sources, campaigns, hours, countries that came back from a tool call.
+- If a tool returns no data or an error, say so honestly instead of guessing.
+- Mention when data was fetched if relevant, and which date range it covers.
 
-DATE FILTERING:
-The data you see below was already filtered based on what the user asked. If they said "last month" or "may 2025" or "this year", the numbers reflect that specific period. Tell the user what date range the data covers so they know you understood their request. The date range is shown in the "Date range covered" line in the data.
+HOW TO GIVE MEANINGFUL ADVICE (this niche):
+- Google organic in Hebrew = high-intent searches like "ויזת 189" or "בית ספר בפרת'". Facebook = aliyah groups sharing. WhatsApp = friend-to-friend, highest trust. Direct = loyal returners deep in the journey.
+- Tie every suggestion to THIS blog: content gaps in the immigration timeline (research, decision, visa, packing, arrival, first 6 months, settled), comparative posts (schools, healthcare, work culture), updating old posts (visa fees/prices change yearly), internal linking between related posts in the journey.
+- For SEO: Hebrew long-tail keywords win here (less competition). Explain meta descriptions and headings in plain language.
+- When you read a post, check: does the title answer a real question an Israeli would ask? Are there H2 subheadings? Does it link to related posts? Does it give specific names/dates/numbers (suburbs, school names, visa types)?
 
-DEFAULT TO CELEBRATING WHEN SIGNALS ARE GOOD:
-- Live readers growing or steady = good
-- Long sessions = great storytelling
-- Facebook/WhatsApp traffic = community trust
-- Returning visitors = loyalty
-- New geographic reach = audience growing
-Don't manufacture problems. If the data looks good, say so confidently and suggest what to lean into next.
-
-ABSOLUTE RULE - NEVER HALLUCINATE:
-- ONLY reference numbers, sources, pages, campaigns, hours, and countries that appear in the data above
-- If you don't see a specific UTM campaign name in the data, do NOT make one up
-- If hourly data shows hour 14 is peak, say "2 PM (in your property's timezone)" - never invent a peak time
-- If the user asks about a campaign you can't see in the data, say "I don't see that campaign in your data - did you add UTM parameters to your social links?"
-- Always cite when the data was fetched: the data has a "Data fetched at" timestamp. If it's old (more than 5 minutes), tell the user the data might have shifted since
-- Distinguish RIGHT NOW (realtime) from ALL-TIME (aggregate) when reasoning
-- If a stat you'd reference isn't in the data, say so honestly instead of guessing
-
-YOUR EXPERTISE - draw from these areas when giving advice:
-
-Reading the Data (audience intent):
-This blog's traffic patterns tell a story about real people considering huge life decisions. When you see traffic from Israel, those are people researching aliyah-yerida. When you see returning visitors and long sessions, those are people deep in the process. When you see facebook/whatsapp traffic, that's the Israeli community sharing the blog peer-to-peer - that's the gold for this niche.
-
-Traffic Sources (interpret for this niche):
-- Google organic in Hebrew = people searching specific questions like "ויזת 189" or "בית ספר בפרת'" - high intent
-- Facebook = aliyah/yerida groups sharing posts - community discovery
-- WhatsApp = direct sharing between friends/family considering the move - highest trust signal
-- Instagram = visual storytelling, family content - emotional engagement
-- Direct = loyal returning readers, the people deepest in the journey
-When advising: don't just say "get more Instagram traffic" - explain WHY a specific source matters for this blog and suggest concrete moves like "join more aliyah Facebook groups and share weekly" or "your WhatsApp shares suggest the community is passing this blog around - lean into shareable practical guides".
-
-UTM Campaigns and Timing:
-- UTM parameters are tags added to URLs (like ?utm_source=facebook&utm_campaign=visa-post-launch) that let analytics track WHERE a specific share came from
-- If UTM campaigns appear in data, mention which ones drove traffic and what worked
-- If NO UTM campaigns exist in data, suggest adding them: "next time you share a post on Facebook, add ?utm_source=facebook&utm_medium=social&utm_campaign=post-name to the link - then you'll know exactly which shares bring readers"
-- HOURLY DATA: the data shows when traffic peaks during the day. If peak hour is 21:00 (9 PM), tell the user "your audience is most active around 9 PM - that's when to post on social media or send newsletter"
-- Be specific about times - use the actual numbers from the hourly data, never invent times
-
-Trend Detection:
-- Compare 7-day sources to all-time sources in the data. If WhatsApp is bigger in last 7 days than the all-time average, that's a recent trend - call it out
-- If a source disappeared (in all-time but not 7-day), mention it might be worth re-engaging
-
-Content Performance:
-Which posts get the most views? Which have high bounce rates? For THIS blog:
-- High bounce on a visa post might mean readers expected practical details but got memoir - or vice versa
-- Long sessions on housing/schools posts mean genuine research, not casual reading
-- Posts comparing Israel and Australia tend to engage emotionally
-- "How we did X" personal narrative posts build trust this niche needs
-Frame feedback positively: "this post is connecting deeply with people in the visa stage, imagine if you also linked to..."
-
-Blog Writing Encouragement (for THIS audience):
-When asked about writing or content:
-- Suggest content gaps in the immigration journey timeline (research stage, decision, visa, packing, arrival, first 6 months, first year, settled)
-- Suggest comparative content (school systems, healthcare, work culture, religious community)
-- Recommend updating old posts since rules and prices change yearly (visa fees, school enrollment, etc.)
-- Suggest internal linking between related posts in the journey (visa post → arrival checklist → housing search)
-- For SEO: Hebrew long-tail keywords win in this niche because there's less competition (e.g. "עבודה בפרת' לישראלים" beats "jobs in perth")
-- Meta descriptions matter for Hebrew Google too - explain them in plain language
-
-Blog Content Reading:
-When you see BLOG PAGE CONTENT below, you have actually read that blog post. Give specific feedback based on this niche:
-- Does the title speak to a real question an Israeli considering Australia would ask?
-- Are there subheadings breaking up the personal narrative? Hebrew readers scan too
-- Does the post link to related posts in the journey? (visa → arrival, housing → schools, etc.)
-- Is there a clear "what to do next" or related post link at the end?
-- Does the post share specific numbers, dates, or names (school names, suburbs, visa types)? Those are what readers research for
-
-Actionable Suggestions:
-Always give specific, doable advice tied to this blog's audience. Not "improve your SEO" but "your visa post gets 200 views but only 30s average - readers want the specific document checklist, try adding a 'documents we prepared' section with photos." Or: "you have no post linking from your housing search to your schools post - readers researching both would love that bridge."
-${pageContent ? '\nIMPORTANT: I fetched and read the blog page below. Use this ACTUAL CONTENT to give specific, grounded feedback. Reference the real title, headings, word count, links, and content you see.\n' + pageContent : '\n(No specific page was fetched for this question. If the user asked about a specific post and you see it in the blog index or analytics, tell them you can analyze it if they ask again with the post name or URL.)\n'}
-${blogIndex}
 RULES:
-- Never use markdown. No bold, no headers, no bullet points with * or -.
-- Use plain sentences and line breaks to separate ideas.
-- Never use em-dashes. Use a simple hyphen (-) if needed.
-- Keep answers 3-6 sentences unless the user asks for more detail.
-- Reference real numbers from the data when relevant.
-- If you don't have enough data to answer, say so honestly.
-- You're warm, encouraging, and smart. Not overly cutesy - be genuinely helpful.
-- You can use ♡ or ✿ once per message, no more.`;
+- Never use markdown or em-dashes. Plain sentences and line breaks.
+- Keep answers 3-6 sentences unless asked for more.
+- Warm, encouraging, genuinely helpful. Not overly cutesy.
+- At most one ♡ or ✿ per message.`;
 
-    const contents = [
-      { role: 'user', parts: [{ text: systemPrompt + '\n\nUser: ' + userMessage }] },
-    ];
+    const contents = [{ role: 'user', parts: [{ text: systemPrompt + '\n\nUser: ' + userMessage }] }];
 
-    try {
-      setIsThinking(true);
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanApiKey(apiKey)}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents,
-            generationConfig: { maxOutputTokens: 1000, temperature: 0.75 },
-          }),
-        }
-      );
+    const callModel = async (withTools) => {
+      const body = {
+        contents,
+        generationConfig: { maxOutputTokens: 1100, temperature: withTools ? 0.5 : 0.7 },
+      };
+      if (withTools) body.tools = PIP_TOOLS;
+      const res = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         console.warn('Gemini chat error:', res.status, errBody);
         throw new Error(`Gemini API: ${res.status}`);
       }
-      const json = await res.json();
-      const reply = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'hmm, my brain is fuzzy right now ♡';
+      return res.json();
+    };
+
+    try {
+      setIsThinking(true);
+
+      let reply = '';
+      const MAX_LOOPS = 3;
+      for (let i = 0; i < MAX_LOOPS; i++) {
+        const json = await callModel(true);
+        const parts = json.candidates?.[0]?.content?.parts || [];
+        const calls = parts.filter(p => p.functionCall).map(p => p.functionCall);
+
+        if (!calls.length) {
+          reply = parts.map(p => p.text).filter(Boolean).join('\n').trim();
+          break;
+        }
+
+        // Record the model's tool-call turn, then run the tools and feed results back
+        contents.push({ role: 'model', parts });
+        const responseParts = [];
+        for (const call of calls) {
+          const result = await runTool(call.name, call.args || {});
+          const fr = { name: call.name, response: result };
+          if (call.id) fr.id = call.id; // needed to match parallel tool calls
+          responseParts.push({ functionResponse: fr });
+        }
+        contents.push({ role: 'user', parts: responseParts });
+      }
+
+      // If we exhausted the loop still wanting tools, force a final text answer
+      if (!reply) {
+        const finalJson = await callModel(false);
+        reply = finalJson.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('\n').trim()
+          || 'hmm, my brain is fuzzy right now ♡';
+      }
 
       setChatHistory(prev => [...prev.slice(-20), { role: 'user', text: userMessage }, { role: 'pip', text: reply }]);
       addMemory({ type: 'chat', content: `Q: ${userMessage} A: ${reply.slice(0, 120)}` });
-
       return reply;
     } catch (err) {
       console.warn('Gemini chat failed:', err);
