@@ -77,9 +77,9 @@ function extractText(html) {
     if (match[1].trim()) images.push(match[1].trim());
   }
 
-  // Truncate content to ~3000 chars to fit in prompt
-  if (mainContent.length > 3000) {
-    mainContent = mainContent.slice(0, 3000) + '\n... (content truncated)';
+  // Truncate content to ~8000 chars to fit in prompt (the agent slices further)
+  if (mainContent.length > 8000) {
+    mainContent = mainContent.slice(0, 8000) + '\n... (content truncated)';
   }
 
   return {
@@ -121,10 +121,16 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: 'Only train2aus.com pages can be fetched' });
     }
 
+    // train2aus.com is a JS-rendered SPA (Lovable) behind Cloudflare with an
+    // SEO pre-render gatekeeper. It only serves the fully-rendered HTML (with
+    // real article text) to allow-listed crawler user-agents. A custom or even
+    // a normal-browser UA gets the empty React shell with no content. We must
+    // present a recognized crawler UA (Googlebot) to receive the prerender,
+    // while still honestly tagging ourselves at the end.
     const response = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'PipCompanion/1.0 (blog analytics helper)',
-        'Accept': 'text/html',
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html) Train2ausPipBot/1.0',
+        'Accept': 'text/html,application/xhtml+xml',
         'Accept-Language': 'he,en;q=0.9',
       },
     });
@@ -149,6 +155,11 @@ export default async function handler(req, res) {
         let title = (m[2] || '')
           .replace(/<[^>]+>/g, ' ')
           .replace(/&nbsp;/g, ' ')
+          .replace(/&#0?39;/g, "'")
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
           .replace(/\s+/g, ' ')
           .trim();
         // Fall back to a readable slug if the link had no text (e.g. image link)

@@ -425,7 +425,7 @@ RULES:
             internalLinkCount: page.internalLinks?.length || 0,
             imageCount: page.imageCount,
             imageAlts: page.imageAlts || [],
-            contentPreview: (page.content || '').slice(0, 1800),
+            contentPreview: (page.content || '').slice(0, 2500),
           };
         }
 
