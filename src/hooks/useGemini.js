@@ -14,7 +14,12 @@ function cleanApiKey(key) {
 
 // Deep context about the blog - shared by all prompts
 const BLOG_CONTEXT = `THE BLOG YOU'RE WATCHING:
-train2aus.com (רכבת לאוסטרליה - "Train to Australia") is a HEBREW blog written by two Israeli families - Meayan and Chen - documenting their immigration journey to Western Australia (Perth area).
+train2aus.com (רכבת לאוסטרליה - "Train to Australia") is a HEBREW blog written by two Israeli writers documenting their immigration journey to Western Australia (Perth area).
+
+THE TWO WRITERS (important - never guess or invent who wrote a post):
+- חן מור (Chen Mor) - a MAN. He writes the posts titled "בלוג N" (e.g. "בלוג 36: מלחמת האזרחים של פרת'").
+- מעיין רימר (Meayan Rimmer) - a WOMAN. She writes the posts titled "#N" (e.g. "#37 כל אחת והמישל שלה").
+Every post is bylined with its real author. The read_post tool returns the actual "author" of any post from the page's structured data - if you are asked who wrote a specific post, read it and report the real author. Never assume gender or identity beyond these two facts. Chen is male, Meayan is female.
 
 The audience: Israeli families and individuals who are
 - Considering moving to Australia (researching the dream)
@@ -417,6 +422,7 @@ RULES:
           return {
             url: target,
             title: page.title,
+            author: page.author || '(author not found on page)',
             metaDescription: page.metaDescription || '(none - SEO gap)',
             wordCount: page.wordCount,
             headings: page.headings?.map(h => `H${h.level}: ${h.text}`) || [],
@@ -518,6 +524,8 @@ YOU HAVE TOOLS - USE THEM. Do not guess or invent data. To answer well:
 - compare_periods: surface trends and growth (this period vs previous) - the most valuable insight
 - get_hourly_pattern: find when the audience is active
 Call a tool whenever answering needs real data. You may call several. When the user asks about a specific post, you MUST read_post it before commenting. When they ask "what's working" or "what changed", use compare_periods.
+
+AUTHORS: There are exactly two writers - חן מור (Chen, a man) and מעיין רימר (Meayan, a woman). If asked who writes the blog in general, you already know both from the context above. If asked who wrote a SPECIFIC post, call read_post - its "author" field is the real, structured-data author. Never guess an author or invent a name or gender.
 
 CRITICAL - READING NUMBERS CORRECTLY:
 - "Live visitors" = people on the site RIGHT NOW. Bounce rate and avg session are AGGREGATES over a period, never live behavior. Never conflate them.

@@ -39,6 +39,17 @@ function extractText(html) {
     || html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["']/i);
   const metaDescription = metaMatch ? metaMatch[1].trim() : '';
 
+  // Extract author - posts carry reliable JSON-LD structured data, with a
+  // visible "מאת <name>" byline as a fallback.
+  let author = '';
+  const ldAuthor = html.match(/"author":\s*\[?\s*\{[^}]*"name":\s*"([^"]+)"/i);
+  if (ldAuthor) {
+    author = ldAuthor[1].trim();
+  } else {
+    const byline = html.match(/מאת\s+([^<·|\n]{2,40})/);
+    if (byline) author = byline[1].trim();
+  }
+
   // Extract main content - strip all tags, clean whitespace
   // Try to find main/article content first
   let mainContent = '';
@@ -85,6 +96,7 @@ function extractText(html) {
   return {
     title,
     metaDescription,
+    author,
     headings,
     content: mainContent,
     internalLinks,
