@@ -13,21 +13,70 @@ const M = ShimonMotion, P = ShimonPoser;
 const BOX = { x: -60, y: 0, w: 380, h: 204 };       // poser units
 const SCALE = 1.5;                                    // px per unit in the sheet
 const COLS = 7;                                       // keeps every sheet under 4096 px (old Android GPU texture limit)
-const BOGAN = { outfit: 'bogan', cheeks: 0.15 };
+// gear.js only draws the bucket hat in profile (the hop is drawn in profile), so the other hats get a profile here
+const GG = ShimonGear.G, sideHatOf = { bucket: ShimonGear.side.hat };
+{
+  const o = (d, fill, w = 2.6) => `<path d="${d}" fill="${fill}" stroke="#000" stroke-width="${w}" stroke-linejoin="round"/>`;
+  const l = (d, w, c) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+  sideHatOf.beanie = () => `<g transform="rotate(-4 126 56)">`
+    + o('M 104 58 C 103 44 111.6 36.6 125.4 36.6 C 139 36.6 148.4 44 148.6 58 Z', GG.beanie)
+    + [112, 119, 126, 133, 140].map(x => l(`M ${x} ${x === 126 ? 38.6 : 41} L ${x} 55`, 1, GG.beanieRib)).join('')
+    + o('M 101.6 55.4 C 115 52.6 137 52.6 150.6 55.4 L 149.8 63.6 C 137 61.4 115 61.4 102.6 63.6 Z', GG.beanieCuff) + `</g>`;
+  sideHatOf.capBack = () => `<g transform="rotate(-4 126 56)">`
+    + o('M 84 58.6 C 90 54 100 53 108 54.6 L 107 60.4 C 99 59.6 90 60.2 84 58.6 Z', GG.capPeak, 2.4)      // the peak, sticking out the back
+    + o('M 104.4 59 C 104.4 46 112.6 39 125.4 39 C 138 39 147.4 46 147.6 59 C 134 61 118 61 104.4 59 Z', GG.cap)
+    + l('M 125.4 39.6 L 125.4 59', 1.1, '#555863') + `<circle cx="125.4" cy="39.4" r="1.9" fill="${GG.cap}" stroke="#000" stroke-width="1.1"/></g>`;
+  sideHatOf.capLow = sideHatOf.capBack;
+}
+let SIDE_HAT = 'bucket';
+ShimonGear.side.hat = () => (sideHatOf[SIDE_HAT] || sideHatOf.bucket)();
 
 function shadow(lift = 0) {
   return `<ellipse cx="125" cy="199" rx="${(46 - lift * 0.5).toFixed(1)}" ry="${(6 - lift * 0.05).toFixed(2)}" fill="#000" opacity="${(0.16 - lift * 0.0025).toFixed(3)}"/>`;
 }
 
+// ---- his looks. Each one comes with its own mood: the eyes he wears, what he does with his paws while idle,
+// and how he pulls each pose. The page swaps looks while he's off screen.
+//   wear   outfit pieces (gear.js)          eyes   resting eyes          mouth  resting mouth
+//   prop   'cig' | 'vape' | null            idle   extra idle keys       poses  per-look pose overrides
+const LOOKS = {
+  bogan: {                                   // the main one: mullet, mo, singlet, thongs, Southern Cross, a smoke on
+    mood: 'grumpy', wear: { outfit: 'bogan' }, eyes: 'glare', mouth: 'cig', prop: 'cig',
+  },
+  eshay: {                                   // bucket hat, gold chain, bum bag, vape
+    mood: 'fired', wear: { outfit: 'eshay' }, eyes: 'angry', mouth: 'scowl', prop: 'vape',
+    poses: {
+      puff:  { eyes: 'squint', mouth: 'X', prop: 'vape', armR: 150, smoke: 1 },
+      blink: { eyes: 'closed', mouth: 'scowl', prop: 'vape' },
+      sneer: { eyes: 'angry', mouth: 'sneer', headTilt: -6, prop: 'vape' },
+    },
+  },
+  beanie: {                                  // winter bogan: beanie over the mullet, a smoke on, half asleep
+    mood: 'chill', wear: { outfit: 'bogan', hat: 'beanie' }, eyes: 'squint', mouth: 'cig', prop: 'cig',
+    idle: { headTilt: 4 },
+    poses: { stoked: { eyes: 'happy', mouth: 'smile', cheeks: 0.45, armL: -70, armR: 70 } },
+  },
+  snapback: {                                // cap on backwards, chain and bum bag, actually in a good mood
+    mood: 'stoked', wear: { outfit: 'eshay', hat: 'capBack' }, eyes: 'normal', mouth: 'smile', prop: null,
+    idle: { armL: -70, armR: 70, cheeks: 0.35 },
+    poses: {
+      puff:  { eyes: 'squint', mouth: 'smile', armL: -70, armR: 70, headTilt: -5, cheeks: 0.4 },
+      blink: { eyes: 'closed', mouth: 'smile', armL: -70, armR: 70, cheeks: 0.35 },
+      sneer: { eyes: 'squint', mouth: 'sneer', headTilt: 6, armL: -70, armR: 70 },
+    },
+  },
+};
+
 // ---- hop: the steady middle hop of a three-hop run, played in place; the page moves him along hopX
-function hopFrames() {
+function hopFrames(L) {
+  SIDE_HAT = L.wear.hat || 'bucket';
   const ch = {};
   M.hopRun(ch, 0, 0, 1, [{ D: 70, H: 24 }, { D: 70, H: 24 }, { D: 70, H: 24 }]);
   M.sortCh(ch);
   const out = [], xs = [];
   const x0 = M.poseAt(ch, 12).x;
   for (let t = 12; t < 24; t++) {
-    const p = { ...M.poseAt(ch, t), ...BOGAN, eyes: 'glare', mouth: 'cig', prop: 'cig', smoke: 0.5 };
+    const p = { ...M.poseAt(ch, t), cheeks: 0.15, ...L.wear, eyes: L.eyes, mouth: L.prop === 'cig' ? 'cig' : L.mouth, prop: L.prop, smoke: 0.5 };
     xs.push(+(p.x - x0).toFixed(3));
     const lift = Math.max(0, -((p.h_y ?? -22) + 22));
     p.x = 0;
@@ -36,25 +85,27 @@ function hopFrames() {
   return { frames: out, xs, hopDistance: +(M.poseAt(ch, 24).x - x0).toFixed(3) };
 }
 
-// ---- idle: front, a smoke on, slow breath, smoke curling (2 s loop at 24 fps)
-function idleFrames() {
+// ---- idle: front, slow breath (a smoke curling if he has one), 2 s loop at 24 fps
+function idleFrames(L) {
   const out = [];
   for (let i = 0; i < 48; i++) {
     const u = i / 48, b = Math.sin(u * Math.PI * 2);
-    out.push(shadow() + P.shimon({ view: 0, ...BOGAN, eyes: 'glare', mouth: 'cig', prop: 'cig',
-      smoke: 0.55 + 0.3 * Math.sin(u * Math.PI * 2 + 1), squash: 0.012 * b, earRot: 3 * Math.sin(u * Math.PI * 4) * (u > 0.6 ? 1 : 0.2),
-      armL: -6, armR: 6 }));
+    out.push(shadow() + P.shimon({ view: 0, cheeks: 0.15, ...L.wear, eyes: L.eyes, mouth: L.mouth, prop: L.prop,
+      smoke: L.prop === 'cig' ? 0.55 + 0.3 * Math.sin(u * Math.PI * 2 + 1) : 0, squash: 0.012 * b,
+      earRot: 3 * Math.sin(u * Math.PI * 4) * (u > 0.6 ? 1 : 0.2), armL: -6, armR: 6, ...(L.idle || {}) }));
   }
   return out;
 }
 
-// ---- talk: the cig out, mouths for fake lip-sync (glare stays on)
+// ---- talk: mouths for fake lip-sync (the smoke comes out; his resting eyes stay on)
 const TALK = [['X', 0], ['A', 0], ['open', 8], ['O', 6], ['OO', 2], ['FV', 2], ['L', 6], ['open', 12]];
-function talkFrames() {
-  return TALK.map(([mouth, jaw]) => shadow() + P.shimon({ view: 0, ...BOGAN, eyes: 'glare', mouth, jaw, armL: -10, armR: 10 }));
+function talkFrames(L) {
+  const arms = L.idle?.armL != null ? { armL: L.idle.armL, armR: L.idle.armR } : { armL: -10, armR: 10 };
+  return TALK.map(([mouth, jaw]) => shadow() + P.shimon({ view: 0, cheeks: 0.15, ...L.wear, eyes: L.eyes, mouth, jaw, ...arms,
+    prop: L.prop === 'vape' ? 'vape' : null, ...(L.idle?.cheeks ? { cheeks: L.idle.cheeks } : {}) }));
 }
 
-// ---- moods / gags (stills)
+// ---- moods / gags (stills); a look can redo any of them
 const POSES = {
   blink:  { eyes: 'closed', mouth: 'cig', prop: 'cig', smoke: 0.55 },
   stare:  { eyes: 'angry', mouth: 'scowl', look: [3, 0], headTilt: -6, armL: -70, armR: 70 },   // "what are you looking at"
@@ -65,11 +116,14 @@ const POSES = {
   sleepy: { eyes: 'closed', mouth: 'X', headTilt: 8, earRot: 10, squash: 0.03 },
   puff:   { eyes: 'glare', mouth: 'cig', prop: 'cig', smoke: 1 },
 };
-function poseFrames() {
-  return Object.values(POSES).map(p => shadow() + P.shimon({ view: 0, ...BOGAN, ...p }));
+function poseFrames(L) {
+  return Object.keys(POSES).map(k => {
+    let p = { ...POSES[k], ...(L.poses?.[k] || {}) };
+    if (L.prop !== 'cig' && p.prop === 'cig') { p = { ...p, prop: null, mouth: p.mouth === 'cig' ? L.mouth : p.mouth }; }
+    return shadow() + P.shimon({ view: 0, cheeks: 0.15, ...L.wear, ...p });
+  });
 }
 
-const SHEETS = { hop: null, idle: null, talk: null, poses: null };
 function sheetSvg(frames) {
   const cw = BOX.w * SCALE, chh = BOX.h * SCALE, cols = Math.min(COLS, frames.length), rows = Math.ceil(frames.length / cols);
   let o = '';
@@ -77,14 +131,21 @@ function sheetSvg(frames) {
     const cx = (i % cols) * cw, cy = Math.floor(i / cols) * chh;
     o += `<svg x="${cx}" y="${cy}" width="${cw}" height="${chh}" viewBox="${BOX.x} ${BOX.y} ${BOX.w} ${BOX.h}" overflow="hidden">${f}</svg>`;
   });
-  return { w: cols * cw, h: rows * chh, cols, rows, inner: o };
+  return { w: cols * cw, h: rows * chh, cols, rows, count: frames.length, inner: o };
 }
-const built = {};
-const hop = hopFrames();
-built.hop = sheetSvg(hop.frames);
-built.idle = sheetSvg(idleFrames());
-built.talk = sheetSvg(talkFrames());
-built.poses = sheetSvg(poseFrames());
+
+const built = {}, looks = {};
+let hopInfo = null;
+for (const [id, L] of Object.entries(LOOKS)) {
+  const hop = hopFrames(L);
+  hopInfo = hopInfo || hop;
+  const sheets = { hop: sheetSvg(hop.frames), idle: sheetSvg(idleFrames(L)), talk: sheetSvg(talkFrames(L)), poses: sheetSvg(poseFrames(L)) };
+  looks[id] = { mood: L.mood, sheets: {} };
+  for (const [k, s] of Object.entries(sheets)) {
+    built[`${id}/${k}`] = s;
+    looks[id].sheets[k] = { file: `${id}/${k}.png`, cols: s.cols, rows: s.rows, frames: s.count };
+  }
+}
 
 window.SHEET_NAMES = Object.keys(built);
 window.showSheet = name => {
@@ -95,19 +156,16 @@ window.showSheet = name => {
   return { w: s.w, h: s.h };
 };
 window.MANIFEST = {
+  version: 2,
   cell: { w: BOX.w * SCALE, h: BOX.h * SCALE },
   unitsPerCell: { w: BOX.w, h: BOX.h },
   anchor: { x: (125 - BOX.x) * SCALE, y: (197 - BOX.y) * SCALE },  // px inside a cell: body centre on the sand
-  // how tall he stands (sand to top of the mullet), to size him on screen
-  standHeight: (197 - 52) * SCALE,
+  standHeight: (197 - 52) * SCALE,                                  // sand to the top of his head, to size him on screen
   fps: 24,
-  sheets: Object.fromEntries(Object.entries(built).map(([k, s]) => [k, { file: `${k}.png`, cols: s.cols, rows: s.rows, frames: null }])),
-  hop: { xs: hop.xs.map(x => +(x * SCALE).toFixed(2)), distance: +(hop.hopDistance * SCALE).toFixed(2) },
+  hop: { xs: hopInfo.xs.map(x => +(x * SCALE).toFixed(2)), distance: +(hopInfo.hopDistance * SCALE).toFixed(2) },
   talk: TALK.map(t => t[0]),
   poses: Object.keys(POSES),
+  defaultLook: 'bogan',
+  looks,
 };
-MANIFEST.sheets.hop.frames = hop.frames.length;
-MANIFEST.sheets.idle.frames = 48;
-MANIFEST.sheets.talk.frames = TALK.length;
-MANIFEST.sheets.poses.frames = Object.keys(POSES).length;
 </script></body></html>

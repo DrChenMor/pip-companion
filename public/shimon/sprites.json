@@ -1,4 +1,5 @@
 {
+ "version": 2,
  "cell": {
   "w": 570,
   "h": 306
@@ -13,32 +14,6 @@
  },
  "standHeight": 217.5,
  "fps": 24,
- "sheets": {
-  "hop": {
-   "file": "hop.png",
-   "cols": 7,
-   "rows": 2,
-   "frames": 12
-  },
-  "idle": {
-   "file": "idle.png",
-   "cols": 7,
-   "rows": 7,
-   "frames": 48
-  },
-  "talk": {
-   "file": "talk.png",
-   "cols": 7,
-   "rows": 2,
-   "frames": 8
-  },
-  "poses": {
-   "file": "poses.png",
-   "cols": 7,
-   "rows": 2,
-   "frames": 8
-  }
- },
  "hop": {
   "xs": [
    0,
@@ -75,5 +50,124 @@
   "sneer",
   "sleepy",
   "puff"
- ]
+ ],
+ "defaultLook": "bogan",
+ "looks": {
+  "bogan": {
+   "mood": "grumpy",
+   "sheets": {
+    "hop": {
+     "file": "bogan/hop.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 12
+    },
+    "idle": {
+     "file": "bogan/idle.png",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48
+    },
+    "talk": {
+     "file": "bogan/talk.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    },
+    "poses": {
+     "file": "bogan/poses.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    }
+   }
+  },
+  "eshay": {
+   "mood": "fired",
+   "sheets": {
+    "hop": {
+     "file": "eshay/hop.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 12
+    },
+    "idle": {
+     "file": "eshay/idle.png",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48
+    },
+    "talk": {
+     "file": "eshay/talk.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    },
+    "poses": {
+     "file": "eshay/poses.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    }
+   }
+  },
+  "beanie": {
+   "mood": "chill",
+   "sheets": {
+    "hop": {
+     "file": "beanie/hop.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 12
+    },
+    "idle": {
+     "file": "beanie/idle.png",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48
+    },
+    "talk": {
+     "file": "beanie/talk.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    },
+    "poses": {
+     "file": "beanie/poses.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    }
+   }
+  },
+  "snapback": {
+   "mood": "stoked",
+   "sheets": {
+    "hop": {
+     "file": "snapback/hop.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 12
+    },
+    "idle": {
+     "file": "snapback/idle.png",
+     "cols": 7,
+     "rows": 7,
+     "frames": 48
+    },
+    "talk": {
+     "file": "snapback/talk.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    },
+    "poses": {
+     "file": "snapback/poses.png",
+     "cols": 7,
+     "rows": 2,
+     "frames": 8
+    }
+   }
+  }
+ }
 }

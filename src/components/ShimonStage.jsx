@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { buildStations } from '../utils/shimonStations';
-import { ShimonActor, loadShimon, mouthFor, isNight, actorStyle } from '../utils/shimonActor';
+import { ShimonActor, loadShimon, loadLook, pickLook, mouthFor, isNight, actorStyle } from '../utils/shimonActor';
 
 // Bogan Shimon on the companion bar: he hop-walks along the strip from card to
 // card, takes a drag, tells you the number (lip-synced), pulls a face about it,
-// and the card flips to a new stat after he leaves.
+// and the card flips to a new stat after he leaves. Each time he hops off the
+// end he comes back in another look, and each look has its own mood.
 //
 // Drawing is sprite sheets rendered from the approved poser drawings
 // (tools/shimon-sprites). One element, background-position per frame, no React
@@ -87,6 +88,7 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
 
   const [active, setActive] = useState(-1);
   const [speech, setSpeech] = useState({ slot: -1, text: '' });
+  const [mood, setMood] = useState(null);
 
   // ---- the actor and his tour
   useEffect(() => {
@@ -98,6 +100,7 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
 
     const talk = async (slot, station) => {
       setActive(slot);
+      const md = actor.mood();
       actor.strike('puff');                               // a drag first
       await sleep(750);
       if (cancelled) return;
@@ -108,20 +111,23 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
         const ch = line[i - 1];
         prev = mouthFor(ch, prev);
         actor.talking(prev);
-        await sleep(ch === '.' || ch === '!' || ch === '?' ? 220 : 58);
+        await sleep(ch === '.' || ch === '!' || ch === '?' ? 220 : md.type);
       }
       actor.talking(0);
       await sleep(350);
       if (cancelled) return;
       actor.strike(station.pose || 'puff');
-      await sleep(station.pose === 'swear' ? 1700 : 1400);
+      await sleep(actor.pose === 'swear' ? md.hold + 300 : md.hold);
       actor.idle();
       await sleep(2200);
     };
 
     const tour = async () => {
+      let next = pickLook(actor.man);
       while (!cancelled) {
         const k = actor.scale();
+        setMood(actor.mood());
+        loadLook(actor.man, next);                        // the next outfit loads while he does this lap
         actor.x = -actor.man.cell.w * k * 0.5; actor.face = 1;
         for (let i = 0; !cancelled && i < geo.current.n; i++) {
           await actor.hopTo(geo.current.cards[i]?.stand ?? actor.x);
@@ -139,6 +145,11 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
         if (cancelled) return;
         await actor.hopTo(geo.current.W + actor.man.cell.w * k * 0.5);   // hops off the end
         await sleep(isNight() ? 30000 : 2500);
+        // off screen: change into the next look (and mood) before he comes back
+        await loadLook(actor.man, next);
+        if (cancelled) return;
+        actor.setLook(next);
+        next = pickLook(actor.man);
       }
     };
 
@@ -180,7 +191,7 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
         );
       })}
 
-      <LiveBadge data={data} palette={palette} H={H} width={reserve} onSettings={onSettings} />
+      <LiveBadge data={data} palette={palette} H={H} width={reserve} onSettings={onSettings} mood={mood} />
 
       <div ref={actorRef} style={{ ...actorStyle, zIndex: 5 }} />
     </div>
@@ -252,7 +263,7 @@ function Big({ station: s, H, palette, width }) {
   );
 }
 
-function LiveBadge({ data, palette, H, width, onSettings }) {
+function LiveBadge({ data, palette, H, width, onSettings, mood }) {
   return (
     <div style={{
       position: 'absolute', right: 0, top: 0, bottom: 0, width,
@@ -265,6 +276,9 @@ function LiveBadge({ data, palette, H, width, onSettings }) {
         <span style={{ fontSize: H * 0.38, fontWeight: 900, lineHeight: 1, fontFamily: '"M PLUS Rounded 1c", system-ui', fontVariantNumeric: 'tabular-nums' }}>{data.active}</span>
       </div>
       <div style={{ fontSize: H * 0.1, fontWeight: 700, color: palette.subInk, marginTop: H * 0.03 }}>עכשיו באתר</div>
+      {mood && <div dir="rtl" style={{ fontSize: H * 0.075, fontWeight: 700, color: palette.subInk, opacity: 0.75, marginTop: H * 0.03, whiteSpace: 'nowrap' }}>
+        שמעון {isNight() ? 'ישן' : mood.he}
+      </div>}
       <button onClick={onSettings} aria-label="settings" style={{
         position: 'absolute', top: H * 0.04, right: H * 0.06, background: 'none', border: 'none',
         cursor: 'pointer', fontSize: Math.max(12, H * 0.12), color: palette.subInk, opacity: 0.45, padding: 0, lineHeight: 1,

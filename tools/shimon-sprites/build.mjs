@@ -1,4 +1,4 @@
-// Renders bogan Shimon sprite sheets from the poser into public/shimon/.
+// Renders Shimon's sprite sheets (one folder per look) from the poser into public/shimon/.
 // Usage: node tools/shimon-sprites/build.mjs        (needs Google Chrome)
 // Based on shimon/rive/poser/render.mjs, plus a transparent background.
 import { spawn } from 'node:child_process';
@@ -45,6 +45,7 @@ try {
     await send('Emulation.setDeviceMetricsOverride', { width: Math.ceil(w), height: Math.ceil(h), deviceScaleFactor: 1, mobile: false });
     await evaluate('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(1))))');
     const r = await send('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: w, height: h, scale: 1 } });
+    mkdirSync(dirname(join(outDir, `${name}.png`)), { recursive: true });
     writeFileSync(join(outDir, `${name}.png`), Buffer.from(r.result.data, 'base64'));
     console.log(`${name}.png  ${Math.round(w)}x${Math.round(h)}`);
   }

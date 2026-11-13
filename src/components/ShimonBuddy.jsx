@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { ShimonActor, loadShimon, mouthFor, actorStyle } from '../utils/shimonActor';
+import { ShimonActor, loadShimon, loadLook, pickLook, mouthFor, actorStyle } from '../utils/shimonActor';
 
 // Bogan Shimon for the mobile and desktop views (the bar has ShimonStage).
 // He smokes and breathes in place, talks while the speech bubble types out a
 // message, pulls a face that fits the mood, and can hop around his box.
+// Now and then he hops out of the box and comes back in another look (each
+// look has its own mood, which colours the faces he pulls).
 
 // the face he pulls after he's said his piece, per mood
 const MOOD_POSE = {
@@ -43,13 +45,30 @@ export default function ShimonBuddy({ mood = 'content', message = '', stand = 12
       a.x = boxW() / 2;
       a.restPose = moodRef.current === 'sleeping' || moodRef.current === 'drowsy' ? 'sleepy' : null;
       actorRef.current = a;
+      a.setLook(pickLook(man));                     // a look of his own each visit
+      await loadLook(man, a.look);
+      if (!alive) return;
       a.start();
+      let next = pickLook(man), hops = 0;
       while (alive && wander) {
         await sleep(9000 + Math.random() * 12000);
         if (!alive) return;
         if (a.mode !== 'idle' || a.restPose) continue;      // not while talking, posing or asleep
         const W = boxW(), margin = standRef.current * 0.5;
         if (W < margin * 4) continue;
+        loadLook(man, next);
+        if (++hops % 4 === 0) {                           // off he goes, and back in something else
+          const out = a.man.cell.w * a.scale() * 0.55;
+          await a.hopTo(W + out);
+          await sleep(1500);
+          await loadLook(man, next);
+          if (!alive) return;
+          a.setLook(next);
+          next = pickLook(man);
+          a.x = -out;
+          await a.hopTo(margin + Math.random() * (W - margin * 2));
+          continue;
+        }
         const target = margin + Math.random() * (W - margin * 2);
         if (Math.abs(target - a.x) > standRef.current * 0.6) await a.hopTo(target);
       }

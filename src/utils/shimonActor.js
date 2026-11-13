@@ -8,18 +8,50 @@
 const BASE = '/shimon/';
 
 let manifestPromise = null;
+const lookPromises = {};
+
+// the manifest, with his first look's sheets loaded
 export function loadShimon() {
   if (!manifestPromise) {
     manifestPromise = fetch(BASE + 'sprites.json')
       .then(r => r.json())
-      .then(m => {
-        for (const s of Object.values(m.sheets)) { const img = new Image(); img.src = BASE + s.file; }
-        return m;
-      })
+      .then(m => loadLook(m, m.defaultLook).then(() => m))
       .catch(e => { manifestPromise = null; throw e; });
   }
   return manifestPromise;
 }
+
+// one look's sheets, decoded and ready (so a swap never shows a blank frame)
+export function loadLook(man, id) {
+  if (!lookPromises[id]) {
+    const sheets = Object.values(man.looks[id]?.sheets || {});
+    lookPromises[id] = Promise.all(sheets.map(s => new Promise(res => {
+      const img = new Image();
+      img.onload = img.onerror = () => res();
+      img.src = BASE + s.file;
+    })));
+  }
+  return lookPromises[id];
+}
+
+// his next look, by weight: mostly the grumpy bogan (40%), the other three 20% each.
+// A plain weighted draw (repeats allowed), so over time he really is in each look that share of the time.
+export const LOOK_WEIGHTS = { bogan: 40, eshay: 20, beanie: 20, snapback: 20 };
+export function pickLook(man) {
+  const ids = Object.keys(man.looks);
+  const w = ids.map(id => LOOK_WEIGHTS[id] ?? 20), total = w.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < ids.length; i++) { if ((r -= w[i]) < 0) return ids[i]; }
+  return ids[0];
+}
+
+// each look comes with a mood: how fast he talks, how long he holds a face, and which faces he swaps for his own
+export const MOODS = {
+  grumpy: { he: 'עצבני', type: 58, hold: 1400, remap: {} },
+  fired:  { he: 'חם על כולם', type: 44, hold: 1300, remap: { sneer: 'swear', stare: 'swear' } },
+  chill:  { he: 'ראש קטן', type: 78, hold: 1900, remap: { swear: 'sneer', stare: 'sleepy' } },
+  stoked: { he: 'במצב רוח טוב', type: 52, hold: 1600, remap: { stare: 'sneer', swear: 'sneer', sneer: 'stoked' } },
+};
 
 export const isNight = () => { const h = new Date().getHours(); return h >= 23 || h < 6; };
 
@@ -32,6 +64,7 @@ export class ShimonActor {
     this.restPose = null;                 // a pose to hold instead of the idle loop (e.g. 'sleepy')
     this.blinkUntil = 0; this.nextBlink = performance.now() + 3000;
     this.hop = null; this.raf = 0; this.last = {};
+    this.look = man.defaultLook || Object.keys(man.looks)[0];
     this.loop = this.loop.bind(this);
   }
 
@@ -40,9 +73,13 @@ export class ShimonActor {
   stop() { cancelAnimationFrame(this.raf); if (this.hop) { this.hop.done(); this.hop = null; } }
   loop(now) { this.draw(now); this.raf = requestAnimationFrame(this.loop); }
 
+  // ---- what he wears, and the mood that comes with it
+  setLook(id) { if (this.man.looks[id]) this.look = id; }
+  mood() { return MOODS[this.man.looks[this.look]?.mood] || MOODS.grumpy; }
+
   // ---- what he does
   idle() { this.mode = 'idle'; }
-  strike(pose) { this.mode = 'pose'; this.pose = pose; }
+  strike(pose) { this.mode = 'pose'; this.pose = this.mood().remap[pose] || pose; }
   talking(mouth) { this.mode = 'talk'; this.mouth = mouth; }
   blink() { this.blinkUntil = performance.now() + 130; }
 
@@ -90,25 +127,25 @@ export class ShimonActor {
       if (now > this.nextBlink) { this.blinkUntil = now + 125; this.nextBlink = now + 2500 + Math.random() * 4000; }
       if (now < this.blinkUntil) { sheet = 'poses'; frame = man.poses.indexOf('blink'); }
       else if (this.restPose) { sheet = 'poses'; frame = Math.max(0, man.poses.indexOf(this.restPose)); }
-      else { sheet = 'idle'; frame = Math.floor((now / 1000) * man.fps) % man.sheets.idle.frames; }
+      else { sheet = 'idle'; frame = Math.floor((now / 1000) * man.fps) % man.looks[this.look].sheets.idle.frames; }
     }
 
-    const info = man.sheets[sheet], last = this.last;
+    const info = man.looks[this.look].sheets[sheet], last = this.last;
     const cw = man.cell.w * k, chh = man.cell.h * k;
-    if (last.k !== k || last.sheet !== sheet) {
+    if (last.k !== k || last.file !== info.file) {
       el.style.width = cw + 'px';
       el.style.height = chh + 'px';
       el.style.backgroundImage = `url(${BASE}${info.file})`;
       el.style.backgroundSize = `${info.cols * cw}px ${info.rows * chh}px`;
       el.style.transformOrigin = `${man.anchor.x * k}px ${man.anchor.y * k}px`;
     }
-    if (last.k !== k || last.sheet !== sheet || last.frame !== frame) {
+    if (last.k !== k || last.file !== info.file || last.frame !== frame) {
       el.style.backgroundPosition = `${-(frame % info.cols) * cw}px ${-Math.floor(frame / info.cols) * chh}px`;
     }
     if (last.k !== k || last.x !== this.x || last.face !== this.face || last.ground !== m.ground) {
       el.style.transform = `translate3d(${(this.x - man.anchor.x * k).toFixed(1)}px, ${(m.ground - man.anchor.y * k).toFixed(1)}px, 0) scaleX(${this.face})`;
     }
-    Object.assign(last, { k, sheet, frame, x: this.x, face: this.face, ground: m.ground });
+    Object.assign(last, { k, file: info.file, frame, x: this.x, face: this.face, ground: m.ground });
   }
 }
 
