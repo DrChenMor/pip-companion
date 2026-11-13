@@ -19,16 +19,17 @@ export function BackgroundDoodles({ palette, mood }) {
   );
 }
 
+// Float is a CSS animation (runs on the compositor) - the old version ran a
+// requestAnimationFrame + setState loop per doodle, which hammered weak devices.
 function Doodle({ item, palette }) {
-  const [t, setT] = useState(0);
-  useEffect(() => {
-    let raf, last = performance.now();
-    const tick = (n) => { setT((n - last) / 1000); raf = requestAnimationFrame(tick); };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  const float = Math.sin(t * 0.8 + item.phase) * 3;
-  const style = { position: 'absolute', left: item.x + '%', top: `calc(${item.y}% + ${float}px)`, width: item.size, height: item.size, transform: `rotate(${item.rot}deg)`, color: item.color };
+  const style = {
+    position: 'absolute', left: item.x + '%', top: item.y + '%',
+    width: item.size, height: item.size, color: item.color,
+    '--rot': item.rot + 'deg',
+    transform: `rotate(${item.rot}deg)`,
+    animation: `doodle-float 7.8s ease-in-out ${-item.phase * 1.25}s infinite alternate`,
+    willChange: 'transform',
+  };
   if (item.kind === 'heart') return <svg viewBox="0 0 20 20" style={style}><path d="M10 17 L3 9 a4 4 0 0 1 7-3 a4 4 0 0 1 7 3 Z" fill="currentColor" /></svg>;
   if (item.kind === 'star') return <svg viewBox="-10 -10 20 20" style={style}><path d="M0 -10 Q0 0 10 0 Q0 0 0 10 Q0 0 -10 0 Q0 0 0 -10 Z" fill="currentColor" /></svg>;
   if (item.kind === 'sakura') return (

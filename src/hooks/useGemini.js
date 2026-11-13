@@ -617,16 +617,21 @@ RULES:
   }, [apiKey, data, mood, creatureName, siteName, memory, chatHistory, addMemory, getDetail, getBlogIndex]);
 
   // Daily snapshot every 8 hours to track long-term trends (not noise)
+  // (reads data through a ref - depending on `data` restarted this timer on
+  // every analytics update, so it never actually fired)
+  const latestData = useRef(data);
+  useEffect(() => { latestData.current = data; }, [data]);
   useEffect(() => {
-    if (!data) return;
     const interval = setInterval(() => {
+      const d = latestData.current;
+      if (!d) return;
       addMemory({
         type: 'daily',
-        content: `${new Date().toLocaleDateString()} - active:${data.active} 24h_views:${Math.round(data.pageviews24h)} bounce:${Math.round(data.bounceRate*100)}% top:${data.topPage} from:${data.topReferrer}`,
+        content: `${new Date().toLocaleDateString()} - active:${d.active} 24h_views:${Math.round(d.pageviews24h)} bounce:${Math.round(d.bounceRate*100)}% top:${d.topPage} from:${d.topReferrer}`,
       });
     }, 8 * 60 * 60 * 1000); // 8 hours
     return () => clearInterval(interval);
-  }, [data, addMemory]);
+  }, [addMemory]);
 
   return {
     generateInsight, chat, chatHistory, isThinking, memory,

@@ -1,0 +1,113 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Bogan Shimon sprites</title>
+<style>html,body{margin:0;background:transparent}svg{display:block}</style>
+<!-- the approved drawings, straight from the Shimon project -->
+<script src="../../../../shimon/rive/poser/shimon_poser.js"></script>
+<script src="../../../../shimon/rive/poser/gear.js"></script>
+<script src="../../../../shimon/rive/poser/hop_drawings.js"></script>
+<script src="../../../../shimon/rive/poser/motion.js"></script>
+</head><body><svg id="s" xmlns="http://www.w3.org/2000/svg"></svg>
+<script>
+// Bogan Shimon sprite sheets for the companion bar.
+// Every cell is the same box in poser units; his anchor (body centre on the sand) is (125, 197).
+const M = ShimonMotion, P = ShimonPoser;
+const BOX = { x: -60, y: 0, w: 380, h: 204 };       // poser units
+const SCALE = 1.5;                                    // px per unit in the sheet
+const COLS = 7;                                       // keeps every sheet under 4096 px (old Android GPU texture limit)
+const BOGAN = { outfit: 'bogan', cheeks: 0.15 };
+
+function shadow(lift = 0) {
+  return `<ellipse cx="125" cy="199" rx="${(46 - lift * 0.5).toFixed(1)}" ry="${(6 - lift * 0.05).toFixed(2)}" fill="#000" opacity="${(0.16 - lift * 0.0025).toFixed(3)}"/>`;
+}
+
+// ---- hop: the steady middle hop of a three-hop run, played in place; the page moves him along hopX
+function hopFrames() {
+  const ch = {};
+  M.hopRun(ch, 0, 0, 1, [{ D: 70, H: 24 }, { D: 70, H: 24 }, { D: 70, H: 24 }]);
+  M.sortCh(ch);
+  const out = [], xs = [];
+  const x0 = M.poseAt(ch, 12).x;
+  for (let t = 12; t < 24; t++) {
+    const p = { ...M.poseAt(ch, t), ...BOGAN, eyes: 'glare', mouth: 'cig', prop: 'cig', smoke: 0.5 };
+    xs.push(+(p.x - x0).toFixed(3));
+    const lift = Math.max(0, -((p.h_y ?? -22) + 22));
+    p.x = 0;
+    out.push(shadow(lift) + M.draw(p));
+  }
+  return { frames: out, xs, hopDistance: +(M.poseAt(ch, 24).x - x0).toFixed(3) };
+}
+
+// ---- idle: front, a smoke on, slow breath, smoke curling (2 s loop at 24 fps)
+function idleFrames() {
+  const out = [];
+  for (let i = 0; i < 48; i++) {
+    const u = i / 48, b = Math.sin(u * Math.PI * 2);
+    out.push(shadow() + P.shimon({ view: 0, ...BOGAN, eyes: 'glare', mouth: 'cig', prop: 'cig',
+      smoke: 0.55 + 0.3 * Math.sin(u * Math.PI * 2 + 1), squash: 0.012 * b, earRot: 3 * Math.sin(u * Math.PI * 4) * (u > 0.6 ? 1 : 0.2),
+      armL: -6, armR: 6 }));
+  }
+  return out;
+}
+
+// ---- talk: the cig out, mouths for fake lip-sync (glare stays on)
+const TALK = [['X', 0], ['A', 0], ['open', 8], ['O', 6], ['OO', 2], ['FV', 2], ['L', 6], ['open', 12]];
+function talkFrames() {
+  return TALK.map(([mouth, jaw]) => shadow() + P.shimon({ view: 0, ...BOGAN, eyes: 'glare', mouth, jaw, armL: -10, armR: 10 }));
+}
+
+// ---- moods / gags (stills)
+const POSES = {
+  blink:  { eyes: 'closed', mouth: 'cig', prop: 'cig', smoke: 0.55 },
+  stare:  { eyes: 'angry', mouth: 'scowl', look: [3, 0], headTilt: -6, armL: -70, armR: 70 },   // "what are you looking at"
+  swear1: { eyes: 'angry', mouth: 'yell', jaw: 12, curse: true, armL: 135, armR: -135, squash: -0.04, cheeks: 0.55 },
+  swear2: { eyes: 'angry', mouth: 'yell', jaw: 9, curse: true, armL: 120, armR: -150, squash: 0.03, cheeks: 0.55 },
+  stoked: { eyes: 'happy', mouth: 'smile', cheeks: 0.6, armL: 150, armR: -150 },                 // big numbers: even a bogan cracks a smile
+  sneer:  { eyes: 'glare', mouth: 'sneer', headTilt: 4 },
+  sleepy: { eyes: 'closed', mouth: 'X', headTilt: 8, earRot: 10, squash: 0.03 },
+  puff:   { eyes: 'glare', mouth: 'cig', prop: 'cig', smoke: 1 },
+};
+function poseFrames() {
+  return Object.values(POSES).map(p => shadow() + P.shimon({ view: 0, ...BOGAN, ...p }));
+}
+
+const SHEETS = { hop: null, idle: null, talk: null, poses: null };
+function sheetSvg(frames) {
+  const cw = BOX.w * SCALE, chh = BOX.h * SCALE, cols = Math.min(COLS, frames.length), rows = Math.ceil(frames.length / cols);
+  let o = '';
+  frames.forEach((f, i) => {
+    const cx = (i % cols) * cw, cy = Math.floor(i / cols) * chh;
+    o += `<svg x="${cx}" y="${cy}" width="${cw}" height="${chh}" viewBox="${BOX.x} ${BOX.y} ${BOX.w} ${BOX.h}" overflow="hidden">${f}</svg>`;
+  });
+  return { w: cols * cw, h: rows * chh, cols, rows, inner: o };
+}
+const built = {};
+const hop = hopFrames();
+built.hop = sheetSvg(hop.frames);
+built.idle = sheetSvg(idleFrames());
+built.talk = sheetSvg(talkFrames());
+built.poses = sheetSvg(poseFrames());
+
+window.SHEET_NAMES = Object.keys(built);
+window.showSheet = name => {
+  const s = built[name], el = document.getElementById('s');
+  el.setAttribute('width', s.w); el.setAttribute('height', s.h);
+  el.setAttribute('viewBox', `0 0 ${s.w} ${s.h}`);
+  el.innerHTML = s.inner;
+  return { w: s.w, h: s.h };
+};
+window.MANIFEST = {
+  cell: { w: BOX.w * SCALE, h: BOX.h * SCALE },
+  unitsPerCell: { w: BOX.w, h: BOX.h },
+  anchor: { x: (125 - BOX.x) * SCALE, y: (197 - BOX.y) * SCALE },  // px inside a cell: body centre on the sand
+  // how tall he stands (sand to top of the mullet), to size him on screen
+  standHeight: (197 - 52) * SCALE,
+  fps: 24,
+  sheets: Object.fromEntries(Object.entries(built).map(([k, s]) => [k, { file: `${k}.png`, cols: s.cols, rows: s.rows, frames: null }])),
+  hop: { xs: hop.xs.map(x => +(x * SCALE).toFixed(2)), distance: +(hop.hopDistance * SCALE).toFixed(2) },
+  talk: TALK.map(t => t[0]),
+  poses: Object.keys(POSES),
+};
+MANIFEST.sheets.hop.frames = hop.frames.length;
+MANIFEST.sheets.idle.frames = 48;
+MANIFEST.sheets.talk.frames = TALK.length;
+MANIFEST.sheets.poses.frames = Object.keys(POSES).length;
+</script></body></html>

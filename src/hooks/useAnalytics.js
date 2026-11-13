@@ -20,7 +20,7 @@ function seedState() {
   };
 }
 
-export function useMockAnalytics({ multiplier = 1, spike = 0 } = {}) {
+export function useMockAnalytics({ multiplier = 1, spike = 0, enabled = true } = {}) {
   const [data, setData] = useState(seedState);
   const ref = useRef(data);
   ref.current = data;
@@ -30,10 +30,14 @@ export function useMockAnalytics({ multiplier = 1, spike = 0 } = {}) {
     if (spike > 0) spikeRef.current = { active: spike, decay: 1 };
   }, [spike]);
 
+  // Ticks once per second (was every animation frame, which re-rendered the
+  // whole app 60x/sec and froze the bar's Android board). Off entirely when
+  // real analytics are available.
   useEffect(() => {
-    let raf;
+    if (!enabled) return;
     let last = performance.now();
-    const tick = (t) => {
+    const tick = () => {
+      const t = performance.now();
       const dt = (t - last) / 1000;
       last = t;
       const cur = ref.current;
@@ -73,11 +77,10 @@ export function useMockAnalytics({ multiplier = 1, spike = 0 } = {}) {
       }
 
       setData(next);
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [multiplier]);
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [multiplier, enabled]);
 
   return data;
 }

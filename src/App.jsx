@@ -3,6 +3,8 @@ import KawaiiCreature from './components/KawaiiCreature';
 import { BackgroundDoodles, SpeechBubble, TypewriterText, StatsCell } from './components/BarComponents';
 import ChatPanel from './components/ChatPanel';
 import SettingsPanel from './components/SettingsPanel';
+import ShimonStage from './components/ShimonStage';
+import { useBarStats } from './hooks/useBarStats';
 import { useMockAnalytics, useGoogleAnalytics, useServerAnalytics, moodFromAnalytics } from './hooks/useAnalytics';
 import { useGemini } from './hooks/useGemini';
 import { useGoogleAuth } from './hooks/useGoogleAuth';
@@ -78,8 +80,8 @@ export default function App() {
   };
 
   const googleAuth = useGoogleAuth(config.gaClientId);
-  const mockData = useMockAnalytics({ multiplier: config.trafficMultiplier, spike });
   const { data: serverData, error: serverError } = useServerAnalytics();
+  const mockData = useMockAnalytics({ multiplier: config.trafficMultiplier, spike, enabled: !serverData });
   const { gaData, error: gaError } = useGoogleAnalytics({
     propertyId: config.gaPropertyId,
     accessToken: googleAuth.accessToken,
@@ -96,6 +98,10 @@ export default function App() {
     creatureName: config.creatureName,
     siteName: config.siteName,
   });
+
+  // Bogan Shimon runs the horizontal bar (?bar); Pip stays on mobile/desktop
+  const shimonBar = barMode && !barVertical;
+  const barStats = useBarStats({ enabled: shimonBar });
 
   const message = useInsightMessage({
     data,
@@ -130,7 +136,12 @@ export default function App() {
       fontWeight: 700, color: palette.ink, overflow: 'hidden',
       position: 'relative',
     }}>
-      <BackgroundDoodles palette={palette} mood={mood} />
+      {!shimonBar && <BackgroundDoodles palette={palette} mood={mood} />}
+
+      {shimonBar && (
+        <ShimonStage data={data} stats={barStats} insight={config.geminiApiKey ? message : null}
+          palette={palette} onSettings={() => setSettingsOpen(o => !o)} />
+      )}
 
       {/* Mobile header: Pip centered + speech bubble below */}
       {!barMode && vpWidth < 500 && (
@@ -153,7 +164,7 @@ export default function App() {
       )}
 
       {/* Desktop/bar header */}
-      {(barMode || vpWidth >= 500) && <div style={{
+      {!shimonBar && (barMode || vpWidth >= 500) && <div style={{
         height: barMode ? '100%' : 108,
         minHeight: barMode ? 0 : 108,
         width: '100%',

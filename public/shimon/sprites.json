@@ -1,0 +1,79 @@
+{
+ "cell": {
+  "w": 570,
+  "h": 306
+ },
+ "unitsPerCell": {
+  "w": 380,
+  "h": 204
+ },
+ "anchor": {
+  "x": 277.5,
+  "y": 295.5
+ },
+ "standHeight": 217.5,
+ "fps": 24,
+ "sheets": {
+  "hop": {
+   "file": "hop.png",
+   "cols": 7,
+   "rows": 2,
+   "frames": 12
+  },
+  "idle": {
+   "file": "idle.png",
+   "cols": 7,
+   "rows": 7,
+   "frames": 48
+  },
+  "talk": {
+   "file": "talk.png",
+   "cols": 7,
+   "rows": 2,
+   "frames": 8
+  },
+  "poses": {
+   "file": "poses.png",
+   "cols": 7,
+   "rows": 2,
+   "frames": 8
+  }
+ },
+ "hop": {
+  "xs": [
+   0,
+   4.88,
+   12.59,
+   22.14,
+   32.51,
+   42.94,
+   53.37,
+   63.8,
+   74.23,
+   84.66,
+   93.86,
+   100.62
+  ],
+  "distance": 105
+ },
+ "talk": [
+  "X",
+  "A",
+  "open",
+  "O",
+  "OO",
+  "FV",
+  "L",
+  "open"
+ ],
+ "poses": [
+  "blink",
+  "stare",
+  "swear1",
+  "swear2",
+  "stoked",
+  "sneer",
+  "sleepy",
+  "puff"
+ ]
+}

@@ -7,3 +7,22 @@ html, body, #root {
   font-family: "M PLUS Rounded 1c", system-ui, sans-serif;
 }
 body { overscroll-behavior: none; }
+
+@keyframes doodle-float {
+  from { transform: translateY(-3px) rotate(var(--rot, 0deg)); }
+  to   { transform: translateY(3px) rotate(var(--rot, 0deg)); }
+}
+
+/* Shimon's bar */
+@keyframes shimon-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+.shimon-card-in { animation: shimon-card-in 0.45s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes shimon-live-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.8); }
+}
+.shimon-live-dot { animation: shimon-live-dot 1.6s ease-in-out infinite; }
+@keyframes shimon-caret { 50% { opacity: 0; } }
+.shimon-caret { animation: shimon-caret 0.8s steps(1) infinite; margin-inline-start: 1px; }
