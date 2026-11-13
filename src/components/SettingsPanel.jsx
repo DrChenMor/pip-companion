@@ -20,24 +20,6 @@ export default function SettingsPanel({ config, setConfig, palette, onClose, ful
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <Section label="companion">
-          <Field label="Name" value={config.creatureName} onChange={v => setConfig({ ...config, creatureName: v })} />
-        </Section>
-
-        <Section label="shape">
-          <div style={{ display: 'flex', gap: 6 }}>
-            {['blob', 'orb', 'pill'].map(s => (
-              <button key={s} onClick={() => setConfig({ ...config, faceShape: s })} style={{
-                flex: 1, padding: '6px 0', borderRadius: 10,
-                border: '2px solid ' + palette.ink, cursor: 'pointer',
-                background: config.faceShape === s ? palette.stickers[0] : '#fff',
-                fontWeight: 700, fontSize: 12, color: palette.ink,
-                fontFamily: 'inherit',
-              }}>{s}</button>
-            ))}
-          </div>
-        </Section>
-
         <Section label="palette">
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {['peach', 'sakura', 'mint', 'vanilla', 'cloud'].map(p => (
@@ -61,23 +43,6 @@ function Section({ label, children }) {
     <div>
       <div style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.2, textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{children}</div>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#666', marginBottom: 2 }}>{label}</div>
-      <input
-        type="text" value={value || ''}
-        onChange={e => onChange(e.target.value)}
-        style={{
-          width: '100%', padding: '6px 10px', border: '1.5px solid #ddd',
-          borderRadius: 8, fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
-          outline: 'none', background: '#fafafa',
-        }}
-      />
     </div>
   );
 }

@@ -19,5 +19,5 @@ export function bounceFlair(r) {
 }
 
 export function countryFlair(c) {
-  return c + ' ♡';
+  return c;
 }

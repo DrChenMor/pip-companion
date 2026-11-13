@@ -63,7 +63,7 @@ export default function ChatPanel({ gemini, palette, isOpen, onClose, isMobile }
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         background: palette.stickers[0], flexShrink: 0,
       }}>
-        <span style={{ fontWeight: 800, fontSize: 14, color: palette.ink }}>chat with pip ♡</span>
+        <span style={{ fontWeight: 800, fontSize: 14, color: palette.ink }}>chat with shimon</span>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {messages.length > 0 && (
             <button
@@ -91,7 +91,7 @@ export default function ChatPanel({ gemini, palette, isOpen, onClose, isMobile }
         {messages.length === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '16px 0' }}>
             <div style={{ color: palette.subInk, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
-              ask me anything about your blog's analytics ✿
+              oi. ask me anything about the blog, mate
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
               {STARTERS.map((q, i) => (
@@ -125,7 +125,7 @@ export default function ChatPanel({ gemini, palette, isOpen, onClose, isMobile }
         })}
         {gemini.isThinking && (
           <div style={{ alignSelf: 'flex-start', color: palette.subInk, fontSize: 12, fontWeight: 600, padding: '4px 8px' }}>
-            pip is thinking...
+            shimon is having a think...
           </div>
         )}
       </div>
@@ -140,7 +140,7 @@ export default function ChatPanel({ gemini, palette, isOpen, onClose, isMobile }
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()}
-          placeholder="ask pip something..."
+          placeholder="ask shimon something... / תשאלו את שמעון"
           dir="auto"
           style={{
             flex: 1, border: '2px solid ' + palette.ink, borderRadius: 10,
@@ -153,7 +153,7 @@ export default function ChatPanel({ gemini, palette, isOpen, onClose, isMobile }
           borderRadius: 10, padding: '8px 14px', cursor: 'pointer',
           fontWeight: 800, fontSize: 13, color: palette.ink,
           fontFamily: 'inherit', boxShadow: '2px 2px 0 ' + palette.ink,
-        }}>♡</button>
+        }}>➤</button>
       </div>
     </div>
   );

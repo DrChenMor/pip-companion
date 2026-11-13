@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
-import KawaiiCreature from './components/KawaiiCreature';
+import ShimonBuddy from './components/ShimonBuddy';
 import { BackgroundDoodles, SpeechBubble, TypewriterText, StatsCell } from './components/BarComponents';
 import ChatPanel from './components/ChatPanel';
 import SettingsPanel from './components/SettingsPanel';
 import ShimonStage from './components/ShimonStage';
+import { buildStations } from './utils/shimonStations';
 import { useBarStats } from './hooks/useBarStats';
 import { useMockAnalytics, useGoogleAnalytics, useServerAnalytics, moodFromAnalytics } from './hooks/useAnalytics';
 import { useGemini } from './hooks/useGemini';
@@ -31,8 +32,7 @@ function loadConfig() {
 
 const DEFAULT_CONFIG = {
   siteName: import.meta.env.VITE_SITE_NAME || 'train2aus.com',
-  creatureName: import.meta.env.VITE_CREATURE_NAME || 'Pip',
-  faceShape: 'blob',
+  creatureName: 'Shimon',
   palette: 'peach',
   geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || '',
   gaPropertyId: import.meta.env.VITE_GA_PROPERTY_ID || '',
@@ -95,13 +95,19 @@ export default function App() {
     apiKey: config.geminiApiKey,
     data,
     mood,
-    creatureName: config.creatureName,
+    creatureName: 'Shimon',   // the companion is bogan Shimon now (ignores an old saved name)
     siteName: config.siteName,
   });
 
-  // Bogan Shimon runs the horizontal bar (?bar); Pip stays on mobile/desktop
+  // Bogan Shimon: walks the horizontal bar (?bar) and lives in the mobile/desktop views
   const shimonBar = barMode && !barVertical;
-  const barStats = useBarStats({ enabled: shimonBar });
+  const barStats = useBarStats();
+  // the same stat cards he presents on the bar, for the dashboard (live is already its own card)
+  const statCards = useMemo(
+    () => (barStats ? buildStations(data, barStats, null).filter(s => s.id !== 'live') : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [barStats],
+  );
 
   const message = useInsightMessage({
     data,
@@ -143,11 +149,11 @@ export default function App() {
           palette={palette} onSettings={() => setSettingsOpen(o => !o)} />
       )}
 
-      {/* Mobile header: Pip centered + speech bubble below */}
+      {/* Mobile header: Shimon hanging about + speech bubble below */}
       {!barMode && vpWidth < 500 && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 16px 6px', position: 'relative', zIndex: 2 }}>
-          <KawaiiCreature mood={mood} size={140} shape={config.faceShape} />
-          <div style={{ width: '100%', marginTop: 10 }}>
+          <ShimonBuddy mood={mood} message={message} stand={118} wander />
+          <div style={{ width: '100%', marginTop: 4 }}>
             <SpeechBubble palette={palette} barDim={0} mobile>
               <TypewriterText text={message} />
             </SpeechBubble>
@@ -165,28 +171,28 @@ export default function App() {
 
       {/* Desktop/bar header */}
       {!shimonBar && (barMode || vpWidth >= 500) && <div style={{
-        height: barMode ? '100%' : 108,
-        minHeight: barMode ? 0 : 108,
+        height: barMode ? '100%' : 'auto',
+        minHeight: barMode ? 0 : 124,
         width: '100%',
         display: barVertical ? 'flex' : (barMode ? 'flex' : 'grid'),
         ...(barVertical
           ? { flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '8px 4px', gap: 8 }
           : barMode
             ? { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', gap: 12 }
-            : { gridTemplateColumns: '130px 1fr auto', alignItems: 'center', padding: '0 22px 0 18px', gap: 26 }
+            : { gridTemplateColumns: '200px 1fr auto', alignItems: 'end', padding: '10px 22px 6px 8px', gap: 20 }
         ),
         position: 'relative', zIndex: 2,
         overflowY: barVertical ? 'auto' : undefined,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: barVertical ? '100%' : barMode ? 'auto' : 130, height: barVertical ? 'auto' : '100%', padding: barMode ? '4px 0' : 0 }}>
-          <KawaiiCreature mood={mood} size={barMode ? (barVertical ? Math.max(barDim * 0.7, 40) : Math.max(barDim * 0.85, 40)) : 104} shape={config.faceShape} />
+        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', width: barVertical ? '100%' : 200, height: barVertical ? 'auto' : '100%' }}>
+          <ShimonBuddy mood={mood} message={message} stand={barVertical ? Math.max(barDim * 0.55, 40) : 84} wander={!barVertical} />
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', width: barVertical ? '100%' : undefined, flex: barMode && !barVertical ? '1 1 0' : undefined, height: barVertical ? 'auto' : '100%', minWidth: 0 }}>
-          <SpeechBubble palette={palette} barDim={barMode ? barDim : 0}>
+        <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', width: barVertical ? '100%' : undefined, flex: barMode && !barVertical ? '1 1 0' : undefined, height: barVertical ? 'auto' : '100%', minWidth: 0 }}>
+          <SpeechBubble palette={palette} barDim={barMode ? barDim : 0} clamp={barMode}>
             <TypewriterText text={message} />
           </SpeechBubble>
         </div>
-        {!barVertical && <div style={{ flex: barMode ? '1 0 auto' : undefined, display: 'flex', justifyContent: 'center' }}><StatsCell data={data} palette={palette} mood={mood} barDim={barMode ? barDim : 0} /></div>}
+        {!barVertical && <div style={{ flex: barMode ? '1 0 auto' : undefined, display: 'flex', justifyContent: 'center', alignSelf: 'center' }}><StatsCell data={data} palette={palette} mood={mood} barDim={barMode ? barDim : 0} /></div>}
         {barMode && !barVertical && <MoodBadge mood={mood} palette={palette} barDim={barDim} />}
         {barMode && (
           <button onClick={() => setSettingsOpen(o => !o)} style={{
@@ -221,28 +227,20 @@ export default function App() {
         <DashCard palette={palette} title="top content" color={palette.stickers[2]}>
           <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>{data.topPage}</div>
           <div style={{ fontSize: 12, color: palette.subInk }}>via {data.topReferrer}</div>
-          <div style={{ fontSize: 12, color: palette.subInk, marginTop: 2 }}>visitors from {data.country} ♡</div>
+          <div style={{ fontSize: 12, color: palette.subInk, marginTop: 2 }}>visitors from {data.country}</div>
         </DashCard>
 
-        <DashCard palette={palette} title="pip's mood" color={palette.stickers[3]}>
+        {statCards.map((st, i) => (
+          <DashCard key={st.id} palette={palette} title={st.kicker} color={palette.stickers[(i + 1) % palette.stickers.length]} rtl>
+            <StationBody station={st} palette={palette} />
+          </DashCard>
+        ))}
+
+        <DashCard palette={palette} title="shimon's mood" color={palette.stickers[3]}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 28, fontWeight: 800 }}>{mood}</div>
             <div style={{ fontSize: 12, color: palette.subInk, marginTop: 4 }}>
-              {mood === 'sleeping' && 'zzz... too quiet right now'}
-              {mood === 'drowsy' && 'barely awake... low traffic hours'}
-              {mood === 'bored' && 'not many visitors today...'}
-              {mood === 'content' && 'things are looking steady ♡'}
-              {mood === 'focused' && 'deep readers, long sessions ♡'}
-              {mood === 'curious' && 'interesting traffic patterns...'}
-              {mood === 'happy' && 'yay! good traffic today!'}
-              {mood === 'excited' && 'woah!! so many visitors!!'}
-              {mood === 'surprised' && 'sudden traffic spike!!'}
-              {mood === 'overwhelmed' && 'too many at once!!'}
-              {mood === 'dizzy' && 'spinning from all this traffic...'}
-              {mood === 'anxious' && 'bounce rate is concerning...'}
-              {mood === 'proud' && 'numbers looking great ♡'}
-              {mood === 'fancy' && 'premium engaged traffic ✿'}
-              {mood === 'smitten' && 'we got a conversion!! ♡'}
+              {MOOD_LINES[mood] || "she'll be right, mate"}
             </div>
           </div>
           {config.geminiApiKey && (
@@ -256,7 +254,7 @@ export default function App() {
           <div style={{ maxHeight: 150, overflowY: 'auto', fontSize: 12 }}>
             {data.events.slice(-8).reverse().map((e, i) => (
               <div key={i} style={{ padding: '3px 0', borderBottom: '1px solid ' + palette.bg, color: palette.ink }}>
-                {e.kind === 'conversion' && '♡ conversion!'}
+                {e.kind === 'conversion' && 'conversion! stoked'}
                 {e.kind === 'spike' && '✿ traffic spike!'}
                 {e.kind === 'visit' && `→ ${e.page} from ${e.country}`}
               </div>
@@ -266,7 +264,7 @@ export default function App() {
         </DashCard>
 
         {gemini.memory.length > 0 && (
-          <DashCard palette={palette} title="pip's memory" color={palette.stickers[0]}>
+          <DashCard palette={palette} title="shimon's memory" color={palette.stickers[0]}>
             <div style={{ maxHeight: 150, overflowY: 'auto', fontSize: 11 }}>
               {gemini.memory.slice(-6).reverse().map((m, i) => (
                 <div key={i} style={{ padding: '3px 0', borderBottom: '1px solid ' + palette.bg, color: palette.subInk }}>
@@ -289,7 +287,7 @@ export default function App() {
         display: 'flex', gap: 8, zIndex: 999,
       }}>
         <PillButton palette={palette} onClick={() => setChatOpen(o => !o)} active={chatOpen}>
-          💬 chat with pip
+          💬 chat with shimon
         </PillButton>
         <PillButton palette={palette} onClick={() => setSettingsOpen(o => !o)} active={settingsOpen}>
           ✿ settings
@@ -302,9 +300,47 @@ export default function App() {
   );
 }
 
-function DashCard({ children, palette, title, color }) {
+// what Shimon reckons about each mood (dashboard card)
+const MOOD_LINES = {
+  sleeping: 'zzz... bloody quiet out there, mate',
+  drowsy: 'half asleep. slow arvo.',
+  bored: "what are you lookin' at? no one's here.",
+  content: "she'll be right. steady as she goes.",
+  focused: "they're actually reading it. fair dinkum.",
+  curious: "oi, who's this then?",
+  happy: 'decent crowd. not bad, mate.',
+  excited: 'heaps of people in! stoked!',
+  surprised: "strewth, where'd they all come from?",
+  overwhelmed: 'too many at once! #@$%!',
+  dizzy: "mate, the room's spinning",
+  anxious: 'they bail too quick. #@$%!',
+  proud: 'bloody oath, look at that',
+  fancy: 'classy crowd in today',
+  smitten: 'someone converted! stoked!',
+};
+
+// one of Shimon's bar stations, as a dashboard card (Hebrew, right to left)
+function StationBody({ station: s, palette }) {
+  let big;
+  if (s.kind === 'chart') big = <MiniTrend values={[...s.big]} palette={palette} />;
+  else if (s.kind === 'text') big = <div dir="auto" style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.25 }}>{s.big}</div>;
+  else big = <div style={{ fontSize: s.kind === 'flags' ? 40 : 52, fontWeight: 900, lineHeight: 1, direction: 'ltr', textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontFamily: '"M PLUS Rounded 1c", system-ui' }}>{s.big}</div>;
   return (
-    <div style={{
+    <>
+      {big}
+      {s.sub && <div style={{ fontSize: 13, color: palette.subInk }}>{s.sub}</div>}
+      <div dir="auto" style={{ fontSize: 13, color: palette.ink, background: palette.bg, borderRadius: 10, padding: '6px 10px', marginTop: 2 }}>
+        <span style={{ fontWeight: 800 }}>שמעון: </span>{s.line}
+      </div>
+    </>
+  );
+}
+
+function DashCard({ children, palette, title, color, rtl }) {
+  return (
+    <div dir={rtl ? 'rtl' : undefined} style={{
+      fontFamily: rtl ? '"Varela Round", "M PLUS Rounded 1c", system-ui' : undefined,
+      textAlign: rtl ? 'right' : undefined,
       background: '#fff', border: '2.5px solid ' + palette.ink,
       borderRadius: 18, padding: 16, boxShadow: '3px 3px 0 ' + palette.ink,
       display: 'flex', flexDirection: 'column', gap: 8,

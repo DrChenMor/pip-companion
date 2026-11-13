@@ -41,7 +41,7 @@ function Doodle({ item, palette }) {
   return <div style={{ ...style, borderRadius: '50%', background: 'currentColor' }} />;
 }
 
-export function SpeechBubble({ children, palette, barDim, mobile }) {
+export function SpeechBubble({ children, palette, barDim, mobile, clamp = true }) {
   const s = barDim > 0 ? Math.max(barDim / 108, 0.5) : 1;
   const border = `${2.5*s}px solid ${palette.ink}`;
   return (
@@ -50,7 +50,7 @@ export function SpeechBubble({ children, palette, barDim, mobile }) {
       padding: mobile ? '12px 18px' : `${10*s}px ${22*s}px`,
       fontSize: mobile ? 16 : 19*s, lineHeight: 1.3, letterSpacing: 0.1,
       fontWeight: 700, color: palette.ink, width: '100%',
-      ...(mobile ? { maxHeight: 'none' } : { maxHeight: 80*s, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }),
+      ...(mobile || !clamp ? { maxHeight: 'none' } : { maxHeight: 80*s, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }),
       boxShadow: `${3*s}px ${3*s}px 0 ${palette.ink}`,
     }}>
       {!mobile && <div style={{
@@ -91,7 +91,7 @@ export function LiveBadge({ value, palette, s = 1 }) {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', padding: `${4*s}px ${14*s}px ${6*s}px`, background: palette.stickers[0], border: `${2.2*s}px solid ${palette.ink}`, borderRadius: 14*s, boxShadow: `${2.5*s}px ${2.5*s}px 0 ${palette.ink}`, minWidth: 0 }}>
       <span style={{ fontSize: 10*s, letterSpacing: 1.5*s, display: 'flex', alignItems: 'center', gap: 5*s, color: palette.ink, fontWeight: 800 }}>
         <span style={{ width: 8*s, height: 8*s, borderRadius: '50%', background: '#E83A6E', boxShadow: pulse ? `0 0 0 ${3*s}px rgba(232,58,110,0.3)` : 'none', transition: 'box-shadow 0.4s' }} />
-        LIVE ♡ NOW
+        LIVE · NOW
       </span>
       <span style={{ fontSize: 38*s, fontWeight: 900, lineHeight: 0.95, marginTop: 2*s, fontVariantNumeric: 'tabular-nums', color: palette.ink }}>{value}</span>
     </div>

@@ -40,6 +40,20 @@ Why this matters for SEO and growth advice:
 
 When advising: think Israeli audience, Hebrew content, immigration journey, community building. Don't suggest generic "improve SEO" advice - tie suggestions to this specific niche.`;
 
+// Who the companion is: bogan Shimon. Shared by the insight one-liners and the chat.
+const SHIMON_PERSONA = `WHO YOU ARE:
+You are Shimon (שמעון), a bogan quokka from Perth - mullet, mo, navy singlet, thongs. You're the blog's mascot and its gruff, cheeky mate.
+On the surface you're dry, deadpan and a bit grumpy-cool, like a classic Aussie bloke. Underneath you're proud of this blog and of Chen and Meayan, and you're properly on their side.
+You're also a genuinely sharp SEO and content expert for Hebrew-language immigration blogs. The attitude is the delivery, the advice is real.
+
+HOW YOU TALK:
+- Dry Aussie humour and a bit of cheek, never mean to the owners and never mean about readers.
+- Sprinkle Aussie slang lightly: mate, reckon, heaps, stoked, arvo, fair dinkum, bloody oath, she'll be right, no worries. One or two per message, not every sentence.
+- In Hebrew: natural Israeli Hebrew, with the odd Aussie word in English (mate, stoked, no worries). Don't overdo it.
+- Good news gets a gruff but real "not bad, mate" / "bloody oath" / "סטוקד". Bad news gets honesty plus a concrete fix, maybe a censored "#@$%!" at most - never real swearing, never insults.
+- Never talk about smoking, vaping or drinking, even as a joke.
+- No emoji, no hearts or flowers (no ♡ ✿).`;
+
 function loadMemory() {
   try {
     return JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]');
@@ -88,7 +102,7 @@ function formatDetailForPrompt(detail) {
   if (!detail) return '(detailed data unavailable right now)';
   let out = '';
 
-  // Timestamp - so Pip knows when this data was fetched (not hallucinated)
+  // Timestamp - so Shimon knows when this data was fetched (not hallucinated)
   if (detail.fetchedAtReadable) {
     out += `Data fetched at: ${detail.fetchedAtReadable}\n`;
     if (detail.dateRange) {
@@ -171,7 +185,7 @@ function formatDetailForPrompt(detail) {
 
 // ---------------------------------------------------------------------------
 // AGENTIC TOOL LAYER
-// Pip decides which data it needs and calls these tools (Gemini function
+// Shimon decides which data it needs and calls these tools (Gemini function
 // calling). This replaces brittle keyword/date guessing with real reasoning.
 // ---------------------------------------------------------------------------
 
@@ -298,7 +312,9 @@ export function useGemini({ apiKey, data, mood, creatureName, siteName }) {
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
     ).join('\n');
 
-    const prompt = `You are ${creatureName}, a kawaii analytics companion and blog growth advisor living on a companion bar watching analytics for ${siteName}.
+    const prompt = `You are ${creatureName}, the analytics companion and blog growth advisor watching ${siteName} from its companion bar.
+
+${SHIMON_PERSONA}
 
 ${BLOG_CONTEXT}
 
@@ -318,7 +334,7 @@ CURRENT STATS:
 
 ${detail ? 'DETAILED DATA:\n' + formatDetailForPrompt(detail) : ''}
 ${blogIdx?.blogPosts?.length ? 'BLOG POSTS ON THE SITE:\n' + blogIdx.blogPosts.map(u => decodeURIComponent(u)).slice(0, 15).join('\n') + '\n' : ''}
-ROLE: You are a supportive SEO companion and writing encourager. You notice patterns in the data and gently nudge the blog owners with useful observations. You celebrate wins, spot opportunities, and encourage content creation.
+ROLE: You're their SEO and writing mate. You notice patterns in the data and give the blog owners a useful nudge. You call out wins, spot opportunities, and push them to keep writing.
 
 CRITICAL - HOW TO READ THE NUMBERS CORRECTLY:
 - "Live visitors" = people on the site RIGHT NOW (real-time)
@@ -338,8 +354,8 @@ WHEN TO BE POSITIVE (default to this for this blog):
 
 RULES:
 - Speak in one short sentence (max 14 words)
-- Lowercase, sweet, encouraging, gently insightful
-- You may use a single ♡ or ✿ - NEVER use stars, emoji, or hashtags
+- English, lowercase, in Shimon's dry bogan voice, but the point must be useful
+- NEVER use emoji, hearts, flowers, stars or hashtags
 - NEVER use em-dashes. Use a simple hyphen (-) if needed
 - When you see interesting data (a page doing well, traffic from a specific source, a country visiting), mention it specifically
 - Mix between: celebrating what's working, noticing traffic patterns, encouraging new content, gentle SEO tips
@@ -349,9 +365,9 @@ RULES:
 - If the data shows a specific traffic source, mention THAT source
 - If the blog post list is available, you can reference actual post topics by their URL slugs
 - Examples of good DATA-BACKED insights:
-  "${data.active} readers on the visa post right now ♡" (only if you see it in realtime pages)
-  "organic search sent 45 sessions this week - hebrew seo is working ✿" (only if you see the number)
-  "your perth housing post has 200 views all time - update it for 2026?" (only if you see the data)
+  "${data.active} reading the visa post right now. not bad, mate" (only if you see it in realtime pages)
+  "google sent 45 sessions this week - the hebrew seo's pulling its weight" (only if you see the number)
+  "perth housing post's on 200 views - reckon it needs a 2026 update" (only if you see the data)
 - BAD examples (never do these - they're made up):
   "try sharing in facebook groups" (generic, not data-backed)
   "maybe write about schools" (random tip with no data basis)
@@ -390,7 +406,7 @@ RULES:
 
     const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanApiKey(apiKey)}`;
 
-    // --- Tool executors: Pip calls these; they hit our real APIs ---
+    // --- Tool executors: Shimon calls these; they hit our real APIs ---
     const runTool = async (name, args = {}) => {
       try {
         if (name === 'list_posts') {
@@ -490,7 +506,7 @@ RULES:
       `[${new Date(m.ts).toLocaleString()}] ${m.type}: ${m.content}`
     ).join('\n');
     const recentChat = chatHistory.slice(-8).map(m =>
-      `${m.role === 'user' ? 'User' : 'Pip'}: ${m.text}`
+      `${m.role === 'user' ? 'User' : creatureName}: ${m.text}`
     ).join('\n');
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -498,8 +514,9 @@ RULES:
 
 ${BLOG_CONTEXT}
 
-YOUR VOICE:
-You speak simply and warmly, like a helpful friend who happens to be an SEO and content expert specifically for Hebrew-language immigration/lifestyle blogs. No jargon unless you explain it. Never use markdown (no **, no ##, no bullet symbols). Plain text only, with line breaks between ideas. Never use em-dashes - use a simple hyphen. You are not here to judge - you celebrate progress and gently guide toward better content and more readers.
+${SHIMON_PERSONA}
+
+FORMAT: Speak simply - no jargon unless you explain it. Never use markdown (no **, no ##, no bullet symbols). Plain text only, with line breaks between ideas. Never use em-dashes - use a simple hyphen. Behind the attitude you're constructive: you call out progress and push toward better content and more readers.
 
 LANGUAGE: If the user writes in Hebrew, reply ENTIRELY in Hebrew. If in English, reply in English. Suggest Hebrew keywords/topics since the blog is in Hebrew.
 
@@ -547,8 +564,8 @@ HOW TO GIVE MEANINGFUL ADVICE (this niche):
 RULES:
 - Never use markdown or em-dashes. Plain sentences and line breaks.
 - Keep answers 3-6 sentences unless asked for more.
-- Warm, encouraging, genuinely helpful. Not overly cutesy.
-- At most one ♡ or ✿ per message.`;
+- Shimon's voice, but genuinely helpful first. The joke never replaces the answer.
+- No emoji, no hearts or flowers.`;
 
     const contents = [{ role: 'user', parts: [{ text: systemPrompt + '\n\nUser: ' + userMessage }] }];
 
@@ -602,7 +619,7 @@ RULES:
       if (!reply) {
         const finalJson = await callModel(false);
         reply = finalJson.candidates?.[0]?.content?.parts?.map(p => p.text).filter(Boolean).join('\n').trim()
-          || 'hmm, my brain is fuzzy right now ♡';
+          || "strewth, brain's gone blank. ask me again, mate?";
       }
 
       setChatHistory(prev => [...prev.slice(-20), { role: 'user', text: userMessage }, { role: 'pip', text: reply }]);
@@ -610,7 +627,7 @@ RULES:
       return reply;
     } catch (err) {
       console.warn('Gemini chat failed:', err);
-      return 'oops, something went wrong... try again? ♡';
+      return '#@$%! something broke. give it another go, mate.';
     } finally {
       setIsThinking(false);
     }

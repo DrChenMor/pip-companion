@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { buildStations } from '../utils/shimonStations';
+import { ShimonActor, loadShimon, mouthFor, isNight, actorStyle } from '../utils/shimonActor';
 
 // Bogan Shimon on the companion bar: he hop-walks along the strip from card to
 // card, takes a drag, tells you the number (lip-synced), pulls a face about it,
@@ -9,8 +10,6 @@ import { buildStations } from '../utils/shimonStations';
 // (tools/shimon-sprites). One element, background-position per frame, no React
 // re-render per frame - light enough for the bar's Android board.
 
-const BASE = '/shimon/';
-const TALK_PUNCT = /[\s.,!?·:;\-–'"()]/;
 
 function useSize(ref) {
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -27,7 +26,6 @@ function useSize(ref) {
   return size;
 }
 
-const isNight = () => { const h = new Date().getHours(); return h >= 23 || h < 6; };
 
 export default function ShimonStage({ data, stats, insight, palette, onSettings }) {
   const rootRef = useRef(null);
@@ -90,113 +88,43 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
   const [active, setActive] = useState(-1);
   const [speech, setSpeech] = useState({ slot: -1, text: '' });
 
-  // ---- the actor: sprite engine + the tour
+  // ---- the actor and his tour
   useEffect(() => {
     let cancelled = false;
-    let raf = 0;
+    let actor = null;
     const timers = new Set();
     const sleep = (ms) => new Promise(r => { const id = setTimeout(() => { timers.delete(id); r(); }, ms); timers.add(id); });
-    const st = { mode: 'idle', pose: 'blink', mouth: 0, x: -9999, face: 1, blinkUntil: 0, nextBlink: performance.now() + 3000, hop: null };
-    let man = null;
-    const last = {};
-
-    const draw = (now) => {
-      const el = actorRef.current;
-      const g = geo.current;
-      if (!el || !man || !g.H) return;
-      const k = (g.H * 0.8) / man.standHeight;
-      const groundY = g.H * 0.965;
-
-      let sheet = 'idle', frame = 0;
-      if (st.mode === 'hop' && st.hop) {
-        const h = st.hop;
-        const t = (now - h.start) / 1000;
-        if (t >= h.count * 0.5) {
-          st.x = h.to; st.hop = null; st.mode = 'idle'; st.blinkUntil = now + 130;   // lands; the change of drawing hides under a blink
-          h.done();
-        } else {
-          const hi = Math.floor(t / 0.5);
-          const f = Math.min(11, Math.floor((t - hi * 0.5) * man.fps));
-          sheet = 'hop'; frame = f;
-          // x steps with the drawing (on ones), so the planted feet don't slide
-          st.x = h.from + h.dir * (hi + man.hop.xs[f] / man.hop.distance) * h.step;
-        }
-      }
-      if (st.mode === 'talk') { sheet = 'talk'; frame = st.mouth; }
-      else if (st.mode === 'pose') {
-        sheet = 'poses';
-        const name = st.pose === 'swear' ? (Math.floor(now / 140) % 2 ? 'swear1' : 'swear2') : st.pose;
-        frame = Math.max(0, man.poses.indexOf(name));
-      } else if (st.mode === 'idle') {
-        if (now > st.nextBlink) { st.blinkUntil = now + 125; st.nextBlink = now + 2500 + Math.random() * 4000; }
-        if (now < st.blinkUntil) { sheet = 'poses'; frame = man.poses.indexOf('blink'); }
-        else if (isNight()) { sheet = 'poses'; frame = man.poses.indexOf('sleepy'); }
-        else { sheet = 'idle'; frame = Math.floor((now / 1000) * man.fps) % man.sheets.idle.frames; }
-      }
-
-      const info = man.sheets[sheet];
-      const cw = man.cell.w * k, chh = man.cell.h * k;
-      if (last.k !== k || last.sheet !== sheet) {
-        el.style.width = cw + 'px';
-        el.style.height = chh + 'px';
-        el.style.backgroundImage = `url(${BASE}${info.file})`;
-        el.style.backgroundSize = `${info.cols * cw}px ${info.rows * chh}px`;
-        el.style.transformOrigin = `${man.anchor.x * k}px ${man.anchor.y * k}px`;
-      }
-      if (last.k !== k || last.sheet !== sheet || last.frame !== frame) {
-        el.style.backgroundPosition = `${-(frame % info.cols) * cw}px ${-Math.floor(frame / info.cols) * chh}px`;
-      }
-      if (last.k !== k || last.x !== st.x || last.face !== st.face) {
-        el.style.transform = `translate3d(${(st.x - man.anchor.x * k).toFixed(1)}px, ${(groundY - man.anchor.y * k).toFixed(1)}px, 0) scaleX(${st.face})`;
-      }
-      Object.assign(last, { k, sheet, frame, x: st.x, face: st.face });
-    };
-    const loop = (now) => { draw(now); raf = requestAnimationFrame(loop); };
-
-    const hopTo = (x) => new Promise(done => {
-      const g = geo.current;
-      const k = (g.H * 0.8) / man.standHeight;
-      const dist = x - st.x;
-      if (Math.abs(dist) < 4) { st.x = x; return done(); }
-      const count = Math.max(1, Math.round(Math.abs(dist) / (man.hop.distance * k)));
-      st.face = dist > 0 ? 1 : -1;
-      st.mode = 'hop';
-      st.hop = { start: performance.now(), from: st.x, to: x, dir: Math.sign(dist), step: Math.abs(dist) / count, count, done };
-    });
+    const metrics = () => ({ stand: (geo.current.H || 0) * 0.8, ground: (geo.current.H || 0) * 0.965 });
 
     const talk = async (slot, station) => {
       setActive(slot);
-      st.mode = 'pose'; st.pose = 'puff';                 // a drag first
+      actor.strike('puff');                               // a drag first
       await sleep(750);
       if (cancelled) return;
-      st.mode = 'talk';
       const line = station.line;
       let prev = 0;
       for (let i = 1; i <= line.length && !cancelled; i++) {
         setSpeech({ slot, text: line.slice(0, i) });
         const ch = line[i - 1];
-        let m;
-        if (TALK_PUNCT.test(ch)) m = Math.random() < 0.5 ? 0 : 1;
-        else { do { m = 1 + Math.floor(Math.random() * 7); } while (m === prev); }
-        st.mouth = prev = m;
+        prev = mouthFor(ch, prev);
+        actor.talking(prev);
         await sleep(ch === '.' || ch === '!' || ch === '?' ? 220 : 58);
       }
-      st.mouth = 0;
+      actor.talking(0);
       await sleep(350);
       if (cancelled) return;
-      st.mode = 'pose'; st.pose = station.pose || 'puff';
+      actor.strike(station.pose || 'puff');
       await sleep(station.pose === 'swear' ? 1700 : 1400);
-      st.mode = 'idle';
+      actor.idle();
       await sleep(2200);
     };
 
     const tour = async () => {
       while (!cancelled) {
-        const g0 = geo.current;
-        const k = (g0.H * 0.8) / man.standHeight;
-        st.x = -man.cell.w * k * 0.5; st.face = 1;
+        const k = actor.scale();
+        actor.x = -actor.man.cell.w * k * 0.5; actor.face = 1;
         for (let i = 0; !cancelled && i < geo.current.n; i++) {
-          await hopTo(geo.current.cards[i]?.stand ?? st.x);
+          await actor.hopTo(geo.current.cards[i]?.stand ?? actor.x);
           if (cancelled) return;
           await sleep(isNight() ? 4000 : 400);
           const id = slotIdsRef.current[i];
@@ -209,25 +137,24 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
           timers.add(t);
         }
         if (cancelled) return;
-        await hopTo(geo.current.W + man.cell.w * k * 0.5);  // hops off the end
+        await actor.hopTo(geo.current.W + actor.man.cell.w * k * 0.5);   // hops off the end
         await sleep(isNight() ? 30000 : 2500);
       }
     };
 
-    fetch(BASE + 'sprites.json')
-      .then(r => r.json())
-      .then(m => {
-        if (cancelled) return;
-        man = m;
-        for (const s of Object.values(m.sheets)) { const img = new Image(); img.src = BASE + s.file; }
-        raf = requestAnimationFrame(loop);
+    loadShimon()
+      .then(man => {
+        if (cancelled || !actorRef.current) return;
+        actor = new ShimonActor(actorRef.current, man, metrics);
+        actor.restPose = isNight() ? 'sleepy' : null;
+        actor.start();
         tour();
       })
       .catch(e => console.warn('Shimon sprites failed to load', e));
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(raf);
+      if (actor) actor.stop();
       timers.forEach(clearTimeout);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,10 +182,7 @@ export default function ShimonStage({ data, stats, insight, palette, onSettings 
 
       <LiveBadge data={data} palette={palette} H={H} width={reserve} onSettings={onSettings} />
 
-      <div ref={actorRef} style={{
-        position: 'absolute', left: 0, top: 0, pointerEvents: 'none', zIndex: 5,
-        backgroundRepeat: 'no-repeat', willChange: 'transform', transform: 'translate3d(-9999px,0,0)',
-      }} />
+      <div ref={actorRef} style={{ ...actorStyle, zIndex: 5 }} />
     </div>
   );
 }
