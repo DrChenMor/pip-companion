@@ -11,8 +11,8 @@
 // Every cell is the same box in poser units; his anchor (body centre on the sand) is (125, 197).
 const M = ShimonMotion, P = ShimonPoser;
 const BOX = { x: -60, y: 0, w: 380, h: 204 };       // poser units
-const SCALE = 1.5;                                    // px per unit in the sheet
-const COLS = 7;                                       // keeps every sheet under 4096 px (old Android GPU texture limit)
+const SCALE = 1.25;                                    // px per unit in the sheet
+const COLS = 8;                                       // keeps every sheet under 4096 px (old Android GPU texture limit)
 // gear.js only draws the bucket hat in profile (the hop is drawn in profile), so the other hats get a profile here
 const GG = ShimonGear.G, sideHatOf = { bucket: ShimonGear.side.hat };
 {
@@ -86,15 +86,20 @@ function hopFrames(L) {
 }
 
 // ---- idle: front, slow breath (a smoke curling if he has one), 2 s loop at 24 fps
+const IDLE = 48, BLINK_EVERY = 4;
 function idleFrames(L) {
   const out = [];
-  for (let i = 0; i < 48; i++) {
+  const blinks = [];
+  for (let i = 0; i < IDLE; i++) {
     const u = i / 48, b = Math.sin(u * Math.PI * 2);
-    out.push(shadow() + P.shimon({ view: 0, cheeks: 0.15, ...L.wear, eyes: L.eyes, mouth: L.mouth, prop: L.prop,
+    const p = { view: 0, cheeks: 0.15, ...L.wear, eyes: L.eyes, mouth: L.mouth, prop: L.prop,
       smoke: L.prop === 'cig' ? 0.55 + 0.3 * Math.sin(u * Math.PI * 2 + 1) : 0, squash: 0.012 * b,
-      earRot: 3 * Math.sin(u * Math.PI * 4) * (u > 0.6 ? 1 : 0.2), armL: -6, armR: 6, ...(L.idle || {}) }));
+      earRot: 3 * Math.sin(u * Math.PI * 4) * (u > 0.6 ? 1 : 0.2), armL: -6, armR: 6, ...(L.idle || {}) };
+    out.push(shadow() + P.shimon(p));
+    // the same drawing with his eyes shut, so a blink changes only his eyes (not his arms, breath or smoke)
+    if (i % BLINK_EVERY === 0) blinks.push(shadow() + P.shimon({ ...p, eyes: 'closed' }));
   }
-  return out;
+  return out.concat(blinks);
 }
 
 // ---- talk: mouths for fake lip-sync (the smoke comes out; his resting eyes stay on)
@@ -165,6 +170,7 @@ window.MANIFEST = {
   hop: { xs: hopInfo.xs.map(x => +(x * SCALE).toFixed(2)), distance: +(hopInfo.hopDistance * SCALE).toFixed(2) },
   talk: TALK.map(t => t[0]),
   poses: Object.keys(POSES),
+  idle: { frames: IDLE, blinkStart: IDLE, blinkEvery: BLINK_EVERY },   // blink frames sit after the idle loop
   defaultLook: 'bogan',
   looks,
 };

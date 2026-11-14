@@ -21,15 +21,28 @@ export function loadShimon() {
   return manifestPromise;
 }
 
-// one look's sheets, decoded and ready (so a swap never shows a blank frame)
+// one look's sheets, decoded and kept in memory (so switching sheets never shows a blank frame).
+// Only the last two looks asked for are kept (the one he wears and the next one): every look is
+// ~4 big images, too much for the bar's Android board to hold all at once.
+const KEEP = 2;
+const held = new Map();                 // look id -> the decoded Image objects (holding them keeps them decoded)
 export function loadLook(man, id) {
   if (!lookPromises[id]) {
     const sheets = Object.values(man.looks[id]?.sheets || {});
-    lookPromises[id] = Promise.all(sheets.map(s => new Promise(res => {
-      const img = new Image();
-      img.onload = img.onerror = () => res();
-      img.src = BASE + s.file;
-    })));
+    const imgs = sheets.map(s => { const img = new Image(); img.src = BASE + s.file; return img; });
+    // ready when decoded; but never wait forever (decode() can stall in a hidden tab) - loaded is good enough
+    const ready = img => Promise.race([
+      (img.decode ? img.decode() : Promise.reject()).catch(() => new Promise(r => { if (img.complete) r(); else img.onload = img.onerror = r; })),
+      new Promise(r => setTimeout(r, 6000)),
+    ]);
+    lookPromises[id] = Promise.all(imgs.map(ready));
+    held.set(id, imgs);
+  } else {
+    const imgs = held.get(id); held.delete(id); held.set(id, imgs);   // most recently used goes last
+  }
+  while (held.size > KEEP) {
+    const oldest = held.keys().next().value;
+    held.delete(oldest); delete lookPromises[oldest];
   }
   return lookPromises[id];
 }
@@ -125,9 +138,14 @@ export class ShimonActor {
       frame = Math.max(0, man.poses.indexOf(name));
     } else if (this.mode === 'idle') {
       if (now > this.nextBlink) { this.blinkUntil = now + 125; this.nextBlink = now + 2500 + Math.random() * 4000; }
-      if (now < this.blinkUntil) { sheet = 'poses'; frame = man.poses.indexOf('blink'); }
-      else if (this.restPose) { sheet = 'poses'; frame = Math.max(0, man.poses.indexOf(this.restPose)); }
-      else { sheet = 'idle'; frame = Math.floor((now / 1000) * man.fps) % man.looks[this.look].sheets.idle.frames; }
+      const iv = man.idle || { frames: 48 };
+      const f = Math.floor((now / 1000) * man.fps) % iv.frames;
+      if (this.restPose) { sheet = 'poses'; frame = Math.max(0, man.poses.indexOf(this.restPose)); }
+      else if (now < this.blinkUntil && iv.blinkStart != null) {
+        // the eyes-shut copy of (nearly) this very idle frame, from the same sheet: only the eyes change
+        sheet = 'idle'; frame = iv.blinkStart + Math.floor(f / iv.blinkEvery);
+      } else if (now < this.blinkUntil) { sheet = 'poses'; frame = man.poses.indexOf('blink'); }
+      else { sheet = 'idle'; frame = f; }
     }
 
     const info = man.looks[this.look].sheets[sheet], last = this.last;

@@ -1,35 +1,35 @@
 {
  "version": 2,
  "cell": {
-  "w": 570,
-  "h": 306
+  "w": 475,
+  "h": 255
  },
  "unitsPerCell": {
   "w": 380,
   "h": 204
  },
  "anchor": {
-  "x": 277.5,
-  "y": 295.5
+  "x": 231.25,
+  "y": 246.25
  },
- "standHeight": 217.5,
+ "standHeight": 181.25,
  "fps": 24,
  "hop": {
   "xs": [
    0,
-   4.88,
-   12.59,
-   22.14,
-   32.51,
-   42.94,
-   53.37,
-   63.8,
-   74.23,
-   84.66,
-   93.86,
-   100.62
+   4.06,
+   10.49,
+   18.45,
+   27.09,
+   35.78,
+   44.47,
+   53.16,
+   61.86,
+   70.55,
+   78.22,
+   83.85
   ],
-  "distance": 105
+  "distance": 87.5
  },
  "talk": [
   "X",
@@ -51,6 +51,11 @@
   "sleepy",
   "puff"
  ],
+ "idle": {
+  "frames": 48,
+  "blinkStart": 48,
+  "blinkEvery": 4
+ },
  "defaultLook": "bogan",
  "looks": {
   "bogan": {
@@ -58,26 +63,26 @@
    "sheets": {
     "hop": {
      "file": "bogan/hop.png",
-     "cols": 7,
+     "cols": 8,
      "rows": 2,
      "frames": 12
     },
     "idle": {
      "file": "bogan/idle.png",
-     "cols": 7,
-     "rows": 7,
-     "frames": 48
+     "cols": 8,
+     "rows": 8,
+     "frames": 60
     },
     "talk": {
      "file": "bogan/talk.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     },
     "poses": {
      "file": "bogan/poses.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     }
    }
@@ -87,26 +92,26 @@
    "sheets": {
     "hop": {
      "file": "eshay/hop.png",
-     "cols": 7,
+     "cols": 8,
      "rows": 2,
      "frames": 12
     },
     "idle": {
      "file": "eshay/idle.png",
-     "cols": 7,
-     "rows": 7,
-     "frames": 48
+     "cols": 8,
+     "rows": 8,
+     "frames": 60
     },
     "talk": {
      "file": "eshay/talk.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     },
     "poses": {
      "file": "eshay/poses.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     }
    }
@@ -116,26 +121,26 @@
    "sheets": {
     "hop": {
      "file": "beanie/hop.png",
-     "cols": 7,
+     "cols": 8,
      "rows": 2,
      "frames": 12
     },
     "idle": {
      "file": "beanie/idle.png",
-     "cols": 7,
-     "rows": 7,
-     "frames": 48
+     "cols": 8,
+     "rows": 8,
+     "frames": 60
     },
     "talk": {
      "file": "beanie/talk.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     },
     "poses": {
      "file": "beanie/poses.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     }
    }
@@ -145,26 +150,26 @@
    "sheets": {
     "hop": {
      "file": "snapback/hop.png",
-     "cols": 7,
+     "cols": 8,
      "rows": 2,
      "frames": 12
     },
     "idle": {
      "file": "snapback/idle.png",
-     "cols": 7,
-     "rows": 7,
-     "frames": 48
+     "cols": 8,
+     "rows": 8,
+     "frames": 60
     },
     "talk": {
      "file": "snapback/talk.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     },
     "poses": {
      "file": "snapback/poses.png",
-     "cols": 7,
-     "rows": 2,
+     "cols": 8,
+     "rows": 1,
      "frames": 8
     }
    }
